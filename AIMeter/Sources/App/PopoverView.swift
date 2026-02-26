@@ -223,6 +223,9 @@ struct InlineSettingsView: View {
     @AppStorage("refreshInterval") private var refreshInterval: Double = 60
     @AppStorage("timezoneOffset") private var timezoneOffset: Int = 8
     @State private var launchAtLogin = false
+    @AppStorage("notificationsEnabled") private var notificationsEnabled: Bool = false
+    @AppStorage("notifyWarning") private var notifyWarning: Int = 80
+    @AppStorage("notifyCritical") private var notifyCritical: Int = 90
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -257,6 +260,40 @@ struct InlineSettingsView: View {
                 }
                 .pickerStyle(.segmented)
                 .labelsHidden()
+            }
+
+            VStack(alignment: .leading, spacing: 8) {
+                Toggle("Enable notifications", isOn: $notificationsEnabled)
+                    .font(.system(size: 12))
+                    .onChange(of: notificationsEnabled) { _, newValue in
+                        if newValue {
+                            NotificationManager.shared.requestPermission()
+                        }
+                    }
+
+                if notificationsEnabled {
+                    Text("Warning threshold")
+                        .font(.system(size: 11))
+                        .foregroundColor(.secondary)
+                    Picker("", selection: $notifyWarning) {
+                        Text("50%").tag(50)
+                        Text("75%").tag(75)
+                        Text("80%").tag(80)
+                    }
+                    .pickerStyle(.segmented)
+                    .labelsHidden()
+
+                    Text("Critical threshold")
+                        .font(.system(size: 11))
+                        .foregroundColor(.secondary)
+                    Picker("", selection: $notifyCritical) {
+                        Text("85%").tag(85)
+                        Text("90%").tag(90)
+                        Text("95%").tag(95)
+                    }
+                    .pickerStyle(.segmented)
+                    .labelsHidden()
+                }
             }
 
             Toggle("Launch at login", isOn: $launchAtLogin)

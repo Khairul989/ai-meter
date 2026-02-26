@@ -48,6 +48,7 @@ final class UsageService: ObservableObject {
             self.error = nil
             SharedDefaults.save(data)
             WidgetCenter.shared.reloadAllTimelines()
+            NotificationManager.shared.check(metrics: NotificationManager.metrics(from: data))
         } catch {
             self.isStale = true
             self.error = .fetchFailed

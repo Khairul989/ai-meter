@@ -18,25 +18,28 @@ targets:
     sources:
       - path: Sources/App
       - path: Sources/Shared
+      - path: Resources/Assets.xcassets
     resources:
       - path: Resources
         excludes:
           - WidgetInfo.plist
           - AIMeterWidget.entitlements
+          - Assets.xcassets
     info:
       path: Resources/Info.plist
       properties:
         LSUIElement: true
         CFBundleDisplayName: AIMeter
-        CFBundleShortVersionString: "1.1.0"
-        CFBundleVersion: "2"
+        CFBundleShortVersionString: "1.2.0"
+        CFBundleVersion: "3"
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.khairul.aimeter
         CODE_SIGN_ENTITLEMENTS: Resources/AIMeter.entitlements
         CODE_SIGN_IDENTITY: "Apple Development"
         CODE_SIGN_STYLE: Automatic
-        DEVELOPMENT_TEAM: ""
+        DEVELOPMENT_TEAM: "X4BB76AA4X"
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
     entitlements:
       path: Resources/AIMeter.entitlements
       properties:
@@ -56,8 +59,8 @@ targets:
       path: Resources/WidgetInfo.plist
       properties:
         CFBundleDisplayName: AI Meter Widget
-        CFBundleShortVersionString: "1.1.0"
-        CFBundleVersion: "2"
+        CFBundleShortVersionString: "1.2.0"
+        CFBundleVersion: "3"
         NSExtension:
           NSExtensionPointIdentifier: com.apple.widgetkit-extension
     settings:
@@ -66,7 +69,7 @@ targets:
         CODE_SIGN_ENTITLEMENTS: Resources/AIMeterWidget.entitlements
         CODE_SIGN_IDENTITY: "Apple Development"
         CODE_SIGN_STYLE: Automatic
-        DEVELOPMENT_TEAM: ""
+        DEVELOPMENT_TEAM: "X4BB76AA4X"
     entitlements:
       path: Resources/AIMeterWidget.entitlements
       properties:
