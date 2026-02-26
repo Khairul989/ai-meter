@@ -1,0 +1,94 @@
+name: AIMeter
+options:
+  bundleIdPrefix: com.khairul
+  deploymentTarget:
+    macOS: "14.0"
+  xcodeVersion: "16.0"
+  groupSortPosition: top
+
+settings:
+  base:
+    SWIFT_VERSION: "5.9"
+    MACOSX_DEPLOYMENT_TARGET: "14.0"
+
+targets:
+  AIMeter:
+    type: application
+    platform: macOS
+    sources:
+      - path: Sources/App
+      - path: Sources/Shared
+    resources:
+      - path: Resources
+        excludes:
+          - WidgetInfo.plist
+          - AIMeterWidget.entitlements
+    info:
+      path: Resources/Info.plist
+      properties:
+        LSUIElement: true
+        CFBundleDisplayName: AIMeter
+        CFBundleShortVersionString: "1.0.0"
+        CFBundleVersion: "1"
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.khairul.aimeter
+        CODE_SIGN_ENTITLEMENTS: Resources/AIMeter.entitlements
+        CODE_SIGN_IDENTITY: "Apple Development"
+        CODE_SIGN_STYLE: Automatic
+        DEVELOPMENT_TEAM: ""
+    entitlements:
+      path: Resources/AIMeter.entitlements
+      properties:
+        com.apple.security.app-sandbox: false
+        com.apple.security.application-groups:
+          - group.com.khairul.aimeter
+        keychain-access-groups:
+          - $(AppIdentifierPrefix)com.khairul.aimeter
+
+  AIMeterWidget:
+    type: app-extension
+    platform: macOS
+    sources:
+      - path: Sources/Widget
+      - path: Sources/Shared
+    info:
+      path: Resources/WidgetInfo.plist
+      properties:
+        CFBundleDisplayName: AI Meter Widget
+        CFBundleShortVersionString: "1.0.0"
+        CFBundleVersion: "1"
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.widgetkit-extension
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.khairul.aimeter.widget
+        CODE_SIGN_ENTITLEMENTS: Resources/AIMeterWidget.entitlements
+        CODE_SIGN_IDENTITY: "Apple Development"
+        CODE_SIGN_STYLE: Automatic
+        DEVELOPMENT_TEAM: ""
+    entitlements:
+      path: Resources/AIMeterWidget.entitlements
+      properties:
+        com.apple.security.app-sandbox: false
+        com.apple.security.application-groups:
+          - group.com.khairul.aimeter
+    dependencies:
+      - target: AIMeter
+        embed: false
+        link: false
+
+  AIMeterTests:
+    type: bundle.unit-test
+    platform: macOS
+    sources:
+      - path: Tests
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.khairul.aimeter.tests
+        CODE_SIGN_IDENTITY: ""
+        CODE_SIGNING_REQUIRED: "NO"
+    dependencies:
+      - target: AIMeter
+        embed: false
+        link: true

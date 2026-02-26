@@ -1,0 +1,16 @@
+# Xcode
+AIMeter/*.xcodeproj
+AIMeter/build/
+*.xcuserdata
+*.xcworkspace
+DerivedData/
+*.hmap
+*.ipa
+*.dSYM.zip
+*.dSYM
+
+# macOS
+.DS_Store
+
+# Dependencies
+.build/
