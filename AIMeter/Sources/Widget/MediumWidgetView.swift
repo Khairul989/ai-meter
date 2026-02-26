@@ -3,17 +3,35 @@ import WidgetKit
 
 struct MediumWidgetView: View {
     let data: UsageData
+    let copilotData: CopilotUsageData?
 
     private var configuredTimeZone: TimeZone {
         let offset = UserDefaults(suiteName: SharedDefaults.suiteName)?.integer(forKey: "timezoneOffset") ?? 0
         return TimeZone(secondsFromGMT: offset * 3600) ?? .current
     }
 
+    // Count of gauges to show (determines sizing)
+    private var gaugeCount: Int {
+        var count = 2 // Session + Weekly always shown
+        if data.sevenDaySonnet != nil { count += 1 }
+        if data.extraCredits != nil { count += 1 }
+        if let copilot = copilotData, !copilot.premiumInteractions.unlimited { count += 1 }
+        return count
+    }
+
+    private var overallHighestUtilization: Int {
+        var values = [data.highestUtilization]
+        if let copilot = copilotData {
+            values.append(copilot.highestUtilization)
+        }
+        return values.max() ?? 0
+    }
+
     var body: some View {
         VStack(spacing: 8) {
             HStack(spacing: 4) {
                 Circle()
-                    .fill(UsageColor.forUtilization(data.highestUtilization))
+                    .fill(UsageColor.forUtilization(overallHighestUtilization))
                     .frame(width: 6, height: 6)
                 Text("AI Meter")
                     .font(.system(size: 10, weight: .semibold))
@@ -60,16 +78,34 @@ struct MediumWidgetView: View {
                             .foregroundColor(.secondary)
                     }
                 }
+
+                if let copilot = copilotData, !copilot.premiumInteractions.unlimited {
+                    VStack(spacing: 4) {
+                        CircularGaugeView(
+                            percentage: copilot.premiumInteractions.utilization,
+                            lineWidth: gaugeLineWidth,
+                            size: gaugeSize
+                        )
+                        Text("Copilot")
+                            .font(.system(size: 10, weight: .medium))
+                            .foregroundColor(.white)
+                        if let resetText = ResetTimeFormatter.format(copilot.resetDate, style: .dayTime, timeZone: configuredTimeZone) {
+                            Text(resetText)
+                                .font(.system(size: 9))
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                }
             }
         }
     }
 
     private var gaugeSize: CGFloat {
-        data.extraCredits != nil ? 48 : 56
+        gaugeCount > 3 ? 48 : 56
     }
 
     private var gaugeLineWidth: CGFloat {
-        data.extraCredits != nil ? 4 : 5
+        gaugeCount > 3 ? 4 : 5
     }
 
     private func gaugeColumn(label: String, limit: RateLimit, resetStyle: ResetTimeFormatter.Style) -> some View {
