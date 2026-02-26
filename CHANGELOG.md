@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.0] - 2026-02-26
+
+### Changed
+
+- Replaced vertical stacked provider layout with tabbed design (Claude / Copilot / Settings tabs)
+- Settings gear button moved from footer into the tab bar
+- Footer "Updated X ago" now reflects the active tab's provider data
+- Footer hidden on Settings tab
+
 ## [1.2.0] - 2026-02-26
 
 ### Added

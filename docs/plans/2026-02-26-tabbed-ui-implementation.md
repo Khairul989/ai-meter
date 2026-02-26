@@ -1,3 +1,25 @@
+# Tabbed UI Implementation Plan
+
+> **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
+
+**Goal:** Replace PopoverView's vertical stacked provider sections with a tab-per-provider design that scales cleanly as new providers are added.
+
+**Architecture:** Pure UI refactor of `PopoverView.swift` only — no service, model, or data changes. Add a `Tab` enum and `TabBarView`, extract `ClaudeTabView` and `CopilotTabView` from existing `@ViewBuilder` sections, then rewrite `PopoverView.body` to switch on `selectedTab` instead of `showSettings`.
+
+**Tech Stack:** SwiftUI, macOS 14+
+
+---
+
+## Task 1: Rewrite PopoverView.swift with tabbed design
+
+**Files:**
+- Modify: `AIMeter/Sources/App/PopoverView.swift` (full rewrite)
+
+This is a pure UI refactor — no logic changes. The complete new file is below. Replace the entire contents of `PopoverView.swift` with this:
+
+### Step 1: Replace the full file
+
+```swift
 import SwiftUI
 import ServiceManagement
 
@@ -368,3 +390,29 @@ struct InlineSettingsView: View {
         }
     }
 }
+```
+
+### Step 2: Build to confirm it compiles
+
+In Xcode: **Product → Build** (⌘B) with AIMeter scheme selected.
+
+Expected: Build succeeded, no errors.
+
+### Step 3: Manual test checklist
+
+Run the app and verify:
+- [ ] Popover opens with Claude tab selected by default
+- [ ] Claude tab shows Session, Weekly, (Sonnet if present), (Credits if present) cards
+- [ ] Copilot tab shows quota rows and reset date
+- [ ] Settings tab shows all settings (refresh, timezone, notifications, launch at login, quit)
+- [ ] Footer shows correct "Updated X ago" for active tab
+- [ ] Footer hidden on Settings tab
+- [ ] Stale indicator appears on the correct tab
+- [ ] Gear button is gone from footer
+
+### Step 4: Commit
+
+```bash
+git add AIMeter/Sources/App/PopoverView.swift docs/plans/2026-02-26-tabbed-ui-design.md docs/plans/2026-02-26-tabbed-ui-implementation.md
+git commit -m "feat: replace vertical layout with tabbed design (Claude / Copilot / Settings)"
+```
