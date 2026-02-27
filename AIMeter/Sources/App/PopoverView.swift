@@ -114,6 +114,13 @@ struct PopoverView: View {
     }
 }
 
+// MARK: - TabIcon
+
+enum TabIcon {
+    case system(String)
+    case asset(String)
+}
+
 // MARK: - TabBarView
 
 struct TabBarView: View {
@@ -121,20 +128,29 @@ struct TabBarView: View {
 
     var body: some View {
         HStack(spacing: 4) {
-            tabButton(.claude, icon: "sparkles", label: "Claude")
-            tabButton(.copilot, icon: "airplane", label: "Copilot")
+            tabButton(.claude,   icon: .asset("claude"),   label: "Claude")
+            tabButton(.copilot,  icon: .asset("copilot"),  label: "Copilot")
             Spacer()
-            tabButton(.settings, icon: "gear", label: nil)
+            tabButton(.settings, icon: .system("gear"),     label: nil)
         }
     }
 
-    private func tabButton(_ tab: Tab, icon: String, label: String?) -> some View {
+    private func tabButton(_ tab: Tab, icon: TabIcon, label: String?) -> some View {
         Button {
             selectedTab = tab
         } label: {
             HStack(spacing: 4) {
-                Image(systemName: icon)
-                    .font(.system(size: 11))
+                switch icon {
+                case .system(let name):
+                    Image(systemName: name)
+                        .font(.system(size: 11))
+                case .asset(let name):
+                    Image(name)
+                        .resizable()
+                        .renderingMode(.template)
+                        .scaledToFit()
+                        .frame(width: 13, height: 13)
+                }
                 if let label = label {
                     Text(label)
                         .font(.system(size: 11, weight: .medium))
