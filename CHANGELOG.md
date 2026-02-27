@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.5.0] - 2026-02-27
+
+### Added
+
+- GLM tab for Z.ai quota monitoring (5hr token quota percentage + account tier)
+- `GLMService` polling `api.z.ai/api/monitor/usage/quota/limit` with env var → Keychain key resolution
+- GLM API key management in Settings: auto-detects `GLM_API_KEY` env var, falls back to manual Keychain entry
+- GLM token quota included in menu bar utilization indicator
+
 ## [1.4.0] - 2026-02-27
 
 ### Changed

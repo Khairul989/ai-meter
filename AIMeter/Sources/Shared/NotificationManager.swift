@@ -144,6 +144,15 @@ final class NotificationManager {
             detail: "\(data.premiumInteractions.remaining)/\(data.premiumInteractions.entitlement) remaining"
         )]
     }
+
+    static func metrics(from data: GLMUsageData) -> [MetricSnapshot] {
+        return [MetricSnapshot(
+            key: "glm.tokens",
+            label: "GLM Tokens",
+            utilization: data.tokensPercent,
+            detail: data.tier.isEmpty ? "" : "\(data.tier.capitalized) tier"
+        )]
+    }
 }
 
 // MARK: - Helpers

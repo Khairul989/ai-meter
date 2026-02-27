@@ -30,4 +30,16 @@ enum SharedDefaults {
         else { return nil }
         return decoded
     }
+
+    static func saveGLM(_ data: GLMUsageData) {
+        guard let encoded = try? JSONEncoder.appEncoder.encode(data) else { return }
+        suite?.set(encoded, forKey: "glmData")
+    }
+
+    static func loadGLM() -> GLMUsageData? {
+        guard let data = suite?.data(forKey: "glmData"),
+              let decoded = try? JSONDecoder.appDecoder.decode(GLMUsageData.self, from: data)
+        else { return nil }
+        return decoded
+    }
 }

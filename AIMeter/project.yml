@@ -30,8 +30,8 @@ targets:
       properties:
         LSUIElement: true
         CFBundleDisplayName: AIMeter
-        CFBundleShortVersionString: "1.4.0"
-        CFBundleVersion: "5"
+        CFBundleShortVersionString: "1.5.0"
+        CFBundleVersion: "6"
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.khairul.aimeter
@@ -59,8 +59,8 @@ targets:
       path: Resources/WidgetInfo.plist
       properties:
         CFBundleDisplayName: AI Meter Widget
-        CFBundleShortVersionString: "1.4.0"
-        CFBundleVersion: "5"
+        CFBundleShortVersionString: "1.5.0"
+        CFBundleVersion: "6"
         NSExtension:
           NSExtensionPointIdentifier: com.apple.widgetkit-extension
     settings:
