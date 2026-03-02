@@ -13,7 +13,7 @@ struct PopoverView: View {
     @ObservedObject var service: UsageService
     @ObservedObject var copilotService: CopilotService
     @ObservedObject var glmService: GLMService
-    @AppStorage("timezoneOffset") private var timezoneOffset: Int = 0
+    @AppStorage("timezoneOffset") private var timezoneOffset: Int = TimeZone.current.secondsFromGMT() / 3600
     @State private var selectedTab: Tab = .claude
 
     private var configuredTimeZone: TimeZone {
@@ -183,13 +183,21 @@ struct ClaudeTabView: View {
     var body: some View {
         let data = service.usageData
         VStack(spacing: 0) {
-            UsageCardView(
-                icon: "timer",
-                title: "Session",
-                subtitle: "5h sliding window",
-                percentage: data.fiveHour.utilization,
-                resetText: ResetTimeFormatter.format(data.fiveHour.resetsAt, style: .countdown, timeZone: timeZone)
-            )
+            // Session card: live countdown ticking every second
+            TimelineView(.periodic(from: .now, by: 1)) { context in
+                UsageCardView(
+                    icon: "timer",
+                    title: "Session",
+                    subtitle: "5h sliding window",
+                    percentage: data.fiveHour.utilization,
+                    resetText: ResetTimeFormatter.format(
+                        data.fiveHour.resetsAt,
+                        style: .countdown,
+                        timeZone: timeZone,
+                        now: context.date
+                    )
+                )
+            }
             UsageCardView(
                 icon: "chart.bar.fill",
                 title: "Weekly",
@@ -347,7 +355,7 @@ struct GLMTabView: View {
 
 struct InlineSettingsView: View {
     @AppStorage("refreshInterval") private var refreshInterval: Double = 60
-    @AppStorage("timezoneOffset") private var timezoneOffset: Int = 8
+    @AppStorage("timezoneOffset") private var timezoneOffset: Int = TimeZone.current.secondsFromGMT() / 3600
     @State private var launchAtLogin = false
     @State private var glmKeyInput: String = ""
     @State private var glmKeySaved: Bool = false

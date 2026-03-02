@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.6.0] - 2026-03-02
+
+### Added
+
+- Live countdown on Session card — ticks every second via `TimelineView(.periodic)` without requiring an API refresh
+
+### Changed
+
+- `ResetTimeFormatter.format` accepts an injectable `now: Date` parameter for testability and live updates
+- Countdown format changed from `"3h01"` to `"3h 1m"` for readability
+- Timezone default auto-detects device timezone (`TimeZone.current`) instead of hardcoded UTC+8
+
+### Fixed
+
+- `APIClient` ISO8601 formatter now includes fractional seconds (`withFractionalSeconds`) to correctly parse API timestamps
+
 ## [1.5.0] - 2026-02-27
 
 ### Added

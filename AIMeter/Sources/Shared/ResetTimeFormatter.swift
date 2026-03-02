@@ -1,29 +1,27 @@
 import Foundation
 
 enum ResetTimeFormatter {
-    /// Format a reset date for display, relative to now.
-    /// Short format: "3h01" for 5-hour resets (same day).
-    /// Long format: "Thu 11am" for 7-day resets.
-    static func format(_ date: Date?, style: Style, timeZone: TimeZone = .current) -> String? {
+    /// Format a reset date for display, relative to a reference date.
+    /// Countdown format: "3h 1m" for 5-hour resets.
+    /// Day/time format: "Thu 11am" for 7-day resets.
+    static func format(_ date: Date?, style: Style, timeZone: TimeZone = .current, now: Date = Date()) -> String? {
         guard let date else { return nil }
-
-        let calendar = Calendar.current
-        let formatter = DateFormatter()
-        formatter.timeZone = timeZone
 
         switch style {
         case .countdown:
-            let diff = calendar.dateComponents([.hour, .minute], from: Date(), to: date)
+            let diff = Calendar.current.dateComponents([.hour, .minute], from: now, to: date)
             guard let h = diff.hour, let m = diff.minute, h >= 0, m >= 0 else { return nil }
-            return String(format: "%dh%02d", h, m)
+            return "\(h)h \(m)m"
         case .dayTime:
+            let formatter = DateFormatter()
+            formatter.timeZone = timeZone
             formatter.dateFormat = "EEE h:mma"
             return formatter.string(from: date).lowercased()
         }
     }
 
     enum Style {
-        case countdown  // "3h01"
+        case countdown  // "3h 1m"
         case dayTime    // "thu 11:00am"
     }
 }

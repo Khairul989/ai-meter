@@ -2,7 +2,11 @@ import Foundation
 
 enum APIClient {
     private static let endpoint = URL(string: "https://api.anthropic.com/api/oauth/usage")!
-    private static let isoFormatter = ISO8601DateFormatter()
+    private static let isoFormatter: ISO8601DateFormatter = {
+        let f = ISO8601DateFormatter()
+        f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return f
+    }()
 
     /// Fetch usage data from the API
     static func fetchUsage(token: String) async throws -> UsageData {
