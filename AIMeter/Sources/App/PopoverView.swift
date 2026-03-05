@@ -449,6 +449,13 @@ struct InlineSettingsView: View {
                     }
                 }
 
+            Button("Check for Updates...") {
+                updaterManager.checkForUpdates()
+            }
+            .font(.system(size: 12))
+            .buttonStyle(.plain)
+            .foregroundColor(.accentColor)
+
             VStack(alignment: .leading, spacing: 8) {
                 Text("GLM API Key")
                     .font(.system(size: 11))
