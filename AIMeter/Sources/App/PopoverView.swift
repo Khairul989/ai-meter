@@ -30,15 +30,6 @@ struct PopoverView: View {
                 Text("AI Meter")
                     .font(.system(size: 16, weight: .bold))
                     .foregroundColor(.white)
-                if let plan = resolvedPlanName {
-                    Text(plan)
-                        .font(.system(size: 10, weight: .semibold))
-                        .foregroundColor(.orange)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
-                        .background(Color.orange.opacity(0.15))
-                        .cornerRadius(4)
-                }
                 Spacer()
             }
             .padding(.bottom, 4)
@@ -53,7 +44,7 @@ struct PopoverView: View {
                 if !authManager.isAuthenticated {
                     signInPromptView
                 } else {
-                    ClaudeTabView(service: service, historyService: historyService, timeZone: configuredTimeZone)
+                    ClaudeTabView(service: service, historyService: historyService, timeZone: configuredTimeZone, planName: resolvedPlanName)
                 }
             case .copilot:
                 CopilotTabView(copilotService: copilotService, timeZone: configuredTimeZone)
@@ -215,11 +206,28 @@ struct ClaudeTabView: View {
     @ObservedObject var service: UsageService
     @ObservedObject var historyService: QuotaHistoryService
     let timeZone: TimeZone
+    var planName: String?
 
     var body: some View {
         let data = service.usageData
         VStack(spacing: 6) {
-            // Breakdown bar: Session / Weekly / Sonnet proportions
+            // Plan badge + breakdown bar
+            HStack {
+                Text("Claude")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundColor(.white)
+                if let plan = planName {
+                    Text(plan)
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundColor(.orange)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(Color.orange.opacity(0.15))
+                        .cornerRadius(4)
+                }
+                Spacer()
+            }
+
             BreakdownBarView(
                 segments: breakdownSegments(from: data),
                 height: 8
