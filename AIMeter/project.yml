@@ -37,6 +37,9 @@ targets:
         CFBundleDisplayName: AIMeter
         CFBundleShortVersionString: "1.7.0"
         CFBundleVersion: "8"
+        SUFeedURL: "https://github.com/Khairul989/ai-meter/releases/latest/download/appcast.xml"
+        SUPublicEDKey: "2gKYaPv+41CVza5bqUH/QI6KHLBWa6VjVSTWEtKPpIM="
+        SUEnableAutomaticChecks: true
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.khairul.aimeter
