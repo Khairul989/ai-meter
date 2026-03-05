@@ -14,3 +14,6 @@ DerivedData/
 
 # Dependencies
 .build/
+
+# Sparkle tools (binaries)
+scripts/sparkle-tools/
