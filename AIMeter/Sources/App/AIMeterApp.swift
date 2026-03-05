@@ -22,16 +22,18 @@ struct AIMeterApp: App {
     @StateObject private var updaterManager = UpdaterManager()
     @StateObject private var authManager = SessionAuthManager()
     @StateObject private var historyService = QuotaHistoryService()
+    @StateObject private var statsService = ClaudeCodeStatsService()
     @AppStorage("refreshInterval") private var refreshInterval: Double = 60
     @AppStorage("menuBarProvider") private var menuBarProvider: String = MenuBarProvider.claude.rawValue
 
     var body: some Scene {
         MenuBarExtra {
-            PopoverView(service: service, copilotService: copilotService, glmService: glmService, updaterManager: updaterManager, authManager: authManager, historyService: historyService)
+            PopoverView(service: service, copilotService: copilotService, glmService: glmService, updaterManager: updaterManager, authManager: authManager, statsService: statsService)
                 .task {
                     service.start(interval: refreshInterval, authManager: authManager, historyService: historyService)
                     copilotService.start(interval: refreshInterval)
                     glmService.start(interval: refreshInterval)
+                    statsService.start(interval: refreshInterval)
                 }
                 .onChange(of: refreshInterval) { _, newValue in
                     service.stop()
@@ -40,6 +42,8 @@ struct AIMeterApp: App {
                     copilotService.start(interval: newValue)
                     glmService.stop()
                     glmService.start(interval: newValue)
+                    statsService.stop()
+                    statsService.start(interval: newValue)
                 }
                 .onChange(of: authManager.isAuthenticated) { _, isAuth in
                     if isAuth {

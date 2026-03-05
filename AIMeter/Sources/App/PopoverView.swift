@@ -15,7 +15,7 @@ struct PopoverView: View {
     @ObservedObject var glmService: GLMService
     @ObservedObject var updaterManager: UpdaterManager
     @ObservedObject var authManager: SessionAuthManager
-    @ObservedObject var historyService: QuotaHistoryService
+    @ObservedObject var statsService: ClaudeCodeStatsService
     @AppStorage("timezoneOffset") private var timezoneOffset: Int = TimeZone.current.secondsFromGMT() / 3600
     @State private var selectedTab: Tab = .claude
 
@@ -44,7 +44,7 @@ struct PopoverView: View {
                 if !authManager.isAuthenticated {
                     signInPromptView
                 } else {
-                    ClaudeTabView(service: service, historyService: historyService, timeZone: configuredTimeZone, planName: resolvedPlanName)
+                    ClaudeTabView(service: service, statsService: statsService, timeZone: configuredTimeZone, planName: resolvedPlanName)
                 }
             case .copilot:
                 CopilotTabView(copilotService: copilotService, timeZone: configuredTimeZone)
@@ -204,14 +204,14 @@ struct TabBarView: View {
 
 struct ClaudeTabView: View {
     @ObservedObject var service: UsageService
-    @ObservedObject var historyService: QuotaHistoryService
+    @ObservedObject var statsService: ClaudeCodeStatsService
     let timeZone: TimeZone
     var planName: String?
 
     var body: some View {
         let data = service.usageData
         VStack(spacing: 6) {
-            // Plan badge + breakdown bar
+            // Plan badge
             HStack {
                 Text("Claude")
                     .font(.system(size: 13, weight: .semibold))
@@ -228,14 +228,11 @@ struct ClaudeTabView: View {
                 Spacer()
             }
 
-            BreakdownBarView(
-                segments: breakdownSegments(from: data),
-                height: 8
-            )
-            .padding(.horizontal, 12)
-            .padding(.vertical, 10)
-            .background(Color.white.opacity(0.05))
-            .cornerRadius(10)
+            // Per-model token usage from Claude Code logs
+            ModelUsageView(statsService: statsService)
+
+            // Daily trend chart
+            TrendChartView(statsService: statsService)
 
             // Session card: live countdown ticking every second
             TimelineView(.periodic(from: .now, by: 1)) { context in
@@ -277,22 +274,9 @@ struct ClaudeTabView: View {
                     resetText: nil
                 )
             }
-
-            // Historical trend chart
-            QuotaChartView(historyService: historyService)
         }
     }
 
-    private func breakdownSegments(from data: UsageData) -> [(label: String, value: Int, color: Color)] {
-        var segments: [(label: String, value: Int, color: Color)] = [
-            ("Session", data.fiveHour.utilization, .blue),
-            ("Weekly", data.sevenDay.utilization, .orange),
-        ]
-        if let sonnet = data.sevenDaySonnet {
-            segments.append(("Sonnet", sonnet.utilization, .purple))
-        }
-        return segments
-    }
 }
 
 // MARK: - CopilotTabView
