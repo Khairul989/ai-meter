@@ -11,6 +11,11 @@ settings:
     SWIFT_VERSION: "5.9"
     MACOSX_DEPLOYMENT_TARGET: "14.0"
 
+packages:
+  Sparkle:
+    url: https://github.com/sparkle-project/Sparkle
+    from: 2.0.0
+
 targets:
   AIMeter:
     type: application
@@ -48,6 +53,8 @@ targets:
           - group.com.khairul.aimeter
         keychain-access-groups:
           - $(AppIdentifierPrefix)com.khairul.aimeter
+    dependencies:
+      - package: Sparkle
 
   AIMeterWidget:
     type: app-extension
