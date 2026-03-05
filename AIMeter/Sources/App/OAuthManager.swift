@@ -71,8 +71,12 @@ final class OAuthManager: ObservableObject {
     }
 
     func submitOAuthCode(_ rawCode: String) async {
-        let parts = rawCode.trimmingCharacters(in: .whitespacesAndNewlines)
-            .split(separator: "#", maxSplits: 1)
+        let trimmed = rawCode.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else {
+            lastError = "No code provided"
+            return
+        }
+        let parts = trimmed.split(separator: "#", maxSplits: 1)
         let code = String(parts[0])
 
         if parts.count > 1 {
