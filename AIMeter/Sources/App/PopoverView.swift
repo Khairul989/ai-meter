@@ -106,17 +106,50 @@ struct PopoverView: View {
         return "Updated \(seconds / 60)m ago"
     }
 
+    @State private var inlineOAuthCode: String = ""
+
     private var signInPromptView: some View {
-        VStack(spacing: 8) {
+        VStack(spacing: 12) {
             Image(systemName: "person.crop.circle.badge.questionmark")
                 .font(.system(size: 32))
                 .foregroundColor(.secondary)
             Text("Not signed in")
                 .font(.headline)
                 .foregroundColor(.white)
-            Text("Sign in via Settings to see Claude usage")
-                .font(.caption)
-                .foregroundColor(.secondary)
+
+            if oauthManager.isAwaitingCode {
+                Text("Paste the code from your browser:")
+                    .font(.system(size: 11))
+                    .foregroundColor(.secondary)
+                HStack {
+                    TextField("code#state", text: $inlineOAuthCode)
+                        .font(.system(size: 12))
+                        .textFieldStyle(.plain)
+                    Button("Submit") {
+                        let code = inlineOAuthCode
+                        inlineOAuthCode = ""
+                        Task { await oauthManager.submitOAuthCode(code) }
+                    }
+                    .font(.system(size: 11))
+                    .buttonStyle(.plain)
+                    .foregroundColor(.accentColor)
+                    .disabled(inlineOAuthCode.isEmpty)
+                }
+                .padding(.horizontal, 24)
+            } else {
+                Button("Sign in with Claude") {
+                    oauthManager.startOAuthFlow()
+                }
+                .font(.system(size: 12))
+                .buttonStyle(.plain)
+                .foregroundColor(.accentColor)
+            }
+
+            if let error = oauthManager.lastError {
+                Text(error)
+                    .font(.system(size: 10))
+                    .foregroundColor(.red)
+            }
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 24)
