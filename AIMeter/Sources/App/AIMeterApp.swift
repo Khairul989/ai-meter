@@ -5,11 +5,12 @@ struct AIMeterApp: App {
     @StateObject private var service = UsageService()
     @StateObject private var copilotService = CopilotService()
     @StateObject private var glmService = GLMService()
+    @StateObject private var updaterManager = UpdaterManager()
     @AppStorage("refreshInterval") private var refreshInterval: Double = 60
 
     var body: some Scene {
         MenuBarExtra {
-            PopoverView(service: service, copilotService: copilotService, glmService: glmService)
+            PopoverView(service: service, copilotService: copilotService, glmService: glmService, updaterManager: updaterManager)
                 .task {
                     service.start(interval: refreshInterval)
                     copilotService.start(interval: refreshInterval)

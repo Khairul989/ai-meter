@@ -13,6 +13,7 @@ struct PopoverView: View {
     @ObservedObject var service: UsageService
     @ObservedObject var copilotService: CopilotService
     @ObservedObject var glmService: GLMService
+    @ObservedObject var updaterManager: UpdaterManager
     @AppStorage("timezoneOffset") private var timezoneOffset: Int = TimeZone.current.secondsFromGMT() / 3600
     @State private var selectedTab: Tab = .claude
 
@@ -57,7 +58,7 @@ struct PopoverView: View {
             case .glm:
                 GLMTabView(glmService: glmService)
             case .settings:
-                InlineSettingsView()
+                InlineSettingsView(updaterManager: updaterManager)
             }
 
             Spacer(minLength: 0)
@@ -354,6 +355,7 @@ struct GLMTabView: View {
 // MARK: - InlineSettingsView
 
 struct InlineSettingsView: View {
+    @ObservedObject var updaterManager: UpdaterManager
     @AppStorage("refreshInterval") private var refreshInterval: Double = 100
     @AppStorage("timezoneOffset") private var timezoneOffset: Int = TimeZone.current.secondsFromGMT() / 3600
     @State private var launchAtLogin = false
