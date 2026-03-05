@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.8.0] - 2026-03-05
+
+### Added
+
+- Sparkle 2 auto-update framework (EdDSA signed, no Apple Developer Program required)
+- Automatic update check on app launch via `SPUStandardUpdaterController`
+- "Check for Updates..." button in Settings tab
+- Release script (`scripts/release.sh`) for building, signing, and publishing to GitHub Releases
+- Appcast XML hosted on GitHub Releases for Sparkle feed
+- Pre-built install instructions in README for non-developer users
+
+## [1.7.0] - 2026-03-04
+
+### Changed
+
+- OAuth rate limit handling with retry-after backoff
+- Default polling interval increased to 100s to reduce rate limit hits
+
 ## [1.6.0] - 2026-03-02
 
 ### Added
