@@ -9,8 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- Menu bar now shows 5h reset countdown instead of 7d utilization (e.g. `5h 26% · 2h 13m`)
-- Countdown updates every 60s via TimelineView
+- Menu bar now shows 5h reset time instead of 7d utilization (e.g. `5h 26% · 3:45pm`)
 
 ## [1.12.0] - 2026-03-05
 

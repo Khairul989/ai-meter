@@ -73,11 +73,11 @@ struct MenuBarLabel: View {
         case .claude:
             let pct = "5h \(usageData.fiveHour.utilization)%"
             if let reset = usageData.fiveHour.resetsAt {
-                let remaining = max(0, Int(reset.timeIntervalSinceNow))
-                let h = remaining / 3600
-                let m = (remaining % 3600) / 60
-                let countdown = h > 0 ? "\(h)h \(m)m" : "\(m)m"
-                return "\(pct) · \(countdown)"
+                let fmt = DateFormatter()
+                fmt.dateFormat = "h:mma"
+                fmt.amSymbol = "am"
+                fmt.pmSymbol = "pm"
+                return "\(pct) · \(fmt.string(from: reset))"
             }
             return pct
         case .copilot:
@@ -99,14 +99,11 @@ struct MenuBarLabel: View {
     }
 
     var body: some View {
-        TimelineView(.periodic(from: .now, by: 60)) { context in
-            let _ = context.date // trigger refresh
-            HStack(spacing: 3) {
-                Image(systemName: "sparkles")
-                    .foregroundStyle(UsageColor.forUtilization(highestUtilization))
-                Text(labelText)
-                    .font(.system(size: 11, weight: .medium, design: .rounded))
-            }
+        HStack(spacing: 3) {
+            Image(systemName: "sparkles")
+                .foregroundStyle(UsageColor.forUtilization(highestUtilization))
+            Text(labelText)
+                .font(.system(size: 11, weight: .medium, design: .rounded))
         }
     }
 }
