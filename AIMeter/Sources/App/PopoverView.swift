@@ -324,6 +324,19 @@ struct CopilotTabView: View {
                         .padding(.bottom, 2)
                 }
                 CopilotChartView(historyService: historyService)
+                HStack(spacing: 4) {
+                    Text("BETA")
+                        .font(.system(size: 9, weight: .bold))
+                        .foregroundColor(.orange)
+                        .padding(.horizontal, 5)
+                        .padding(.vertical, 2)
+                        .background(Color.orange.opacity(0.15))
+                        .cornerRadius(4)
+                    Text("Trend data is experimental — accuracy may vary.")
+                        .font(.system(size: 10))
+                        .foregroundColor(.secondary)
+                }
+                .padding(.bottom, 2)
                 copilotQuotaRow(title: "Chat", quota: copilot.chat)
                 copilotQuotaRow(title: "Completions", quota: copilot.completions)
                 copilotQuotaRow(title: "Premium", quota: copilot.premiumInteractions)

@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.14.0] - 2026-03-11
+
+### Added
+
+- Copilot quota snapshot history — records each API poll result with timestamp for burn rate tracking
+- Copilot trend chart — multi-series line chart (Chat/Completions/Premium) with "Usage %" and "Remaining" toggle
+- Beta badge on Copilot trend chart — clearly marks the feature as experimental
+- New Claude icon
+
+### Fixed
+
+- Copilot trend chart Y-axis now uses actual entitlement value as upper bound instead of auto-scaling above it
+- Copilot API rate-limit backoff — reschedules polling timer on 429 responses using `retry-after` header
+
 ## [1.13.0] - 2026-03-07
 
 ### Added
