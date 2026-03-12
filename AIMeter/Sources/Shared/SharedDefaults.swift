@@ -42,4 +42,16 @@ enum SharedDefaults {
         else { return nil }
         return decoded
     }
+
+    static func saveKimi(_ data: KimiUsageData) {
+        guard let encoded = try? JSONEncoder.appEncoder.encode(data) else { return }
+        suite?.set(encoded, forKey: "kimiData")
+    }
+
+    static func loadKimi() -> KimiUsageData? {
+        guard let data = suite?.data(forKey: "kimiData"),
+              let decoded = try? JSONDecoder.appDecoder.decode(KimiUsageData.self, from: data)
+        else { return nil }
+        return decoded
+    }
 }

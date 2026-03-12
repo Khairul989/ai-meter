@@ -4,12 +4,14 @@ enum MenuBarProvider: String, CaseIterable {
     case claude = "claude"
     case copilot = "copilot"
     case glm = "glm"
+    case kimi = "kimi"
 
     var displayName: String {
         switch self {
         case .claude: "Claude"
         case .copilot: "Copilot"
         case .glm: "GLM"
+        case .kimi: "Kimi"
         }
     }
 }
@@ -20,6 +22,7 @@ struct AIMeterApp: App {
     @StateObject private var copilotService = CopilotService()
     @StateObject private var copilotHistoryService = CopilotHistoryService()
     @StateObject private var glmService = GLMService()
+    @StateObject private var kimiService = KimiService()
     @StateObject private var updaterManager = UpdaterManager()
     @StateObject private var authManager = SessionAuthManager()
     @StateObject private var historyService = QuotaHistoryService()
@@ -37,6 +40,7 @@ struct AIMeterApp: App {
                     group.addTask { await service.fetch() }
                     group.addTask { await copilotService.fetch() }
                     group.addTask { await glmService.fetch() }
+                    group.addTask { await kimiService.fetch() }
                 }
                 statsService.load()
                 try? await Task.sleep(for: .milliseconds(600))
@@ -44,11 +48,12 @@ struct AIMeterApp: App {
             }
         }
         MenuBarExtra {
-            PopoverView(service: service, copilotService: copilotService, copilotHistoryService: copilotHistoryService, glmService: glmService, updaterManager: updaterManager, authManager: authManager, statsService: statsService, onRefresh: refreshAll)
+            PopoverView(service: service, copilotService: copilotService, copilotHistoryService: copilotHistoryService, glmService: glmService, kimiService: kimiService, updaterManager: updaterManager, authManager: authManager, statsService: statsService, onRefresh: refreshAll)
                 .task {
                     service.start(interval: refreshInterval, authManager: authManager, historyService: historyService)
                     copilotService.start(interval: refreshInterval, historyService: copilotHistoryService)
                     glmService.start(interval: refreshInterval)
+                    kimiService.start(interval: refreshInterval)
                     statsService.start(interval: refreshInterval)
                 }
                 .onChange(of: refreshInterval) { _, newValue in
@@ -58,6 +63,8 @@ struct AIMeterApp: App {
                     copilotService.start(interval: newValue, historyService: copilotHistoryService)
                     glmService.stop()
                     glmService.start(interval: newValue)
+                    kimiService.stop()
+                    kimiService.start(interval: newValue)
                     statsService.stop()
                     statsService.start(interval: newValue)
                 }
@@ -72,6 +79,7 @@ struct AIMeterApp: App {
                 usageData: service.usageData,
                 copilotData: copilotService.copilotData,
                 glmData: glmService.glmData,
+                kimiData: kimiService.kimiData,
                 isRefreshing: isRefreshing
             )
         }
@@ -84,6 +92,7 @@ struct MenuBarLabel: View {
     let usageData: UsageData
     let copilotData: CopilotUsageData
     let glmData: GLMUsageData
+    let kimiData: KimiUsageData
     let isRefreshing: Bool
 
     private var labelText: String {
@@ -102,6 +111,8 @@ struct MenuBarLabel: View {
             return "Premium \(copilotData.premiumInteractions.utilization)%"
         case .glm:
             return "GLM \(glmData.tokensPercent)%"
+        case .kimi:
+            return String(format: "Kimi ¥%.2f", kimiData.totalBalance)
         }
     }
 
@@ -113,6 +124,9 @@ struct MenuBarLabel: View {
             copilotData.premiumInteractions.utilization
         case .glm:
             glmData.tokensPercent
+        case .kimi:
+            // Balance-based: green when positive, red when zero
+            kimiData.totalBalance > 0 ? 10 : 100
         }
     }
 

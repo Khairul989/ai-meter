@@ -4,7 +4,17 @@ import ServiceManagement
 // MARK: - Tab
 
 enum Tab {
-    case claude, copilot, glm, settings
+    case claude, copilot, glm, kimi, settings
+
+    var displayName: String {
+        switch self {
+        case .claude:   return "Claude"
+        case .copilot:  return "Copilot"
+        case .glm:      return "GLM"
+        case .kimi:     return "Kimi"
+        case .settings: return "Settings"
+        }
+    }
 }
 
 // MARK: - PopoverView
@@ -14,12 +24,14 @@ struct PopoverView: View {
     @ObservedObject var copilotService: CopilotService
     @ObservedObject var copilotHistoryService: CopilotHistoryService
     @ObservedObject var glmService: GLMService
+    @ObservedObject var kimiService: KimiService
     @ObservedObject var updaterManager: UpdaterManager
     @ObservedObject var authManager: SessionAuthManager
     @ObservedObject var statsService: ClaudeCodeStatsService
     var onRefresh: () -> Void
     @AppStorage("timezoneOffset") private var timezoneOffset: Int = TimeZone.current.secondsFromGMT() / 3600
     @State private var selectedTab: Tab = .claude
+    @State private var previousTab: Tab = .claude
     @State private var eventMonitor: Any?
 
     private var configuredTimeZone: TimeZone {
@@ -27,19 +39,74 @@ struct PopoverView: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            // Header
-            HStack {
+        VStack(alignment: .leading, spacing: 0) {
+            // Header: provider dropdown + settings gear
+            HStack(alignment: .center, spacing: 8) {
                 Text("AI Meter")
-                    .font(.system(size: 16, weight: .bold))
+                    .font(.system(size: 15, weight: .bold))
                     .foregroundColor(.white)
-                Spacer()
-            }
-            .padding(.bottom, 4)
 
-            // Tab bar
-            TabBarView(selectedTab: $selectedTab)
-                .padding(.bottom, 8)
+                Spacer()
+
+                // Provider dropdown — hidden on settings tab
+                if selectedTab != .settings {
+                    Menu {
+                        Button { selectedTab = .claude }   label: { Label("Claude",  systemImage: "sparkles") }
+                        Button { selectedTab = .copilot }  label: { Label("Copilot", systemImage: "chevron.left.forwardslash.chevron.right") }
+                        Button { selectedTab = .glm }      label: { Label("GLM",     systemImage: "z.square") }
+                        Button { selectedTab = .kimi }     label: { Label("Kimi",    systemImage: "k.square") }
+                    } label: {
+                        HStack(spacing: 4) {
+                            Text(selectedTab.displayName)
+                                .font(.system(size: 12, weight: .medium))
+                                .foregroundColor(.white)
+                            Image(systemName: "chevron.up.chevron.down")
+                                .font(.system(size: 9, weight: .semibold))
+                                .foregroundColor(.secondary)
+                        }
+                        .padding(.horizontal, 9)
+                        .padding(.vertical, 5)
+                        .background(Color.white.opacity(0.08))
+                        .cornerRadius(7)
+                    }
+                    .menuStyle(.borderlessButton)
+                    .fixedSize()
+                }
+
+                // Settings icon / Back button
+                if selectedTab == .settings {
+                    Button {
+                        selectedTab = previousTab
+                    } label: {
+                        HStack(spacing: 4) {
+                            Image(systemName: "chevron.left")
+                                .font(.system(size: 11, weight: .semibold))
+                            Text("Back")
+                                .font(.system(size: 12, weight: .medium))
+                        }
+                        .foregroundColor(.secondary)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 5)
+                        .background(Color.white.opacity(0.08))
+                        .cornerRadius(7)
+                    }
+                    .buttonStyle(.plain)
+                } else {
+                    Button {
+                        previousTab = selectedTab
+                        selectedTab = .settings
+                    } label: {
+                        Image(systemName: "gear")
+                            .font(.system(size: 13))
+                            .foregroundColor(.secondary)
+                            .padding(6)
+                            .background(Color.clear)
+                            .cornerRadius(6)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .padding(.bottom, 12)
 
             // Content
             switch selectedTab {
@@ -53,8 +120,10 @@ struct PopoverView: View {
                 CopilotTabView(copilotService: copilotService, historyService: copilotHistoryService, timeZone: configuredTimeZone)
             case .glm:
                 GLMTabView(glmService: glmService)
+            case .kimi:
+                KimiTabView(kimiService: kimiService)
             case .settings:
-                InlineSettingsView(updaterManager: updaterManager, authManager: authManager)
+                InlineSettingsView(updaterManager: updaterManager, authManager: authManager, selectedTab: $selectedTab)
             }
 
             Spacer(minLength: 0)
@@ -63,13 +132,15 @@ struct PopoverView: View {
             // Footer — hidden on Settings tab
             if selectedTab != .settings {
                 HStack {
-                    Text(updatedText)
-                        .font(.system(size: 10))
-                        .foregroundColor(.secondary)
-                    if isStale {
-                        Text("(stale)")
+                    if !updatedText.isEmpty {
+                        Text(updatedText)
                             .font(.system(size: 10))
-                            .foregroundColor(.orange)
+                            .foregroundColor(.secondary)
+                        if isStale {
+                            Text("(stale)")
+                                .font(.system(size: 10))
+                                .foregroundColor(.orange)
+                        }
                     }
                     Spacer()
                     Button(action: onRefresh) {
@@ -80,10 +151,11 @@ struct PopoverView: View {
                     .buttonStyle(.plain)
                     .help("Refresh (⌘R)")
                 }
+                .padding(.top, 8)
             }
         }
-        .padding(16)
-        .frame(width: 320)
+        .padding(20)
+        .frame(width: 360)
         .onAppear {
             eventMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
                 if event.modifierFlags.contains(.command) && event.charactersIgnoringModifiers == "r" {
@@ -115,6 +187,7 @@ struct PopoverView: View {
         case .claude: return service.isStale
         case .copilot: return copilotService.isStale
         case .glm: return glmService.isStale
+        case .kimi: return kimiService.isStale
         case .settings: return false
         }
     }
@@ -125,8 +198,11 @@ struct PopoverView: View {
         case .claude: fetchedAt = service.usageData.fetchedAt
         case .copilot: fetchedAt = copilotService.copilotData.fetchedAt
         case .glm: fetchedAt = glmService.glmData.fetchedAt
+        case .kimi: fetchedAt = kimiService.kimiData.fetchedAt
         case .settings: return ""
         }
+        // Never fetched — provider not configured
+        if fetchedAt == .distantPast { return "" }
         let seconds = Int(Date().timeIntervalSince(fetchedAt))
         if seconds < 60 { return "Updated less than a minute ago" }
         return "Updated \(seconds / 60)m ago"
@@ -169,59 +245,6 @@ struct PopoverView: View {
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 24)
-    }
-}
-
-// MARK: - TabIcon
-
-enum TabIcon {
-    case system(String)
-    case asset(String)
-}
-
-// MARK: - TabBarView
-
-struct TabBarView: View {
-    @Binding var selectedTab: Tab
-
-    var body: some View {
-        HStack(spacing: 4) {
-            tabButton(.claude,   icon: .asset("claude"),    label: "Claude")
-            tabButton(.copilot,  icon: .asset("copilot"),   label: "Copilot")
-            tabButton(.glm,      icon: .system("z.square"), label: "GLM")
-            Spacer()
-            tabButton(.settings, icon: .system("gear"),      label: nil)
-        }
-    }
-
-    private func tabButton(_ tab: Tab, icon: TabIcon, label: String?) -> some View {
-        Button {
-            selectedTab = tab
-        } label: {
-            HStack(spacing: 4) {
-                switch icon {
-                case .system(let name):
-                    Image(systemName: name)
-                        .font(.system(size: 11))
-                case .asset(let name):
-                    Image(name)
-                        .resizable()
-                        .renderingMode(.template)
-                        .scaledToFit()
-                        .frame(width: 13, height: 13)
-                }
-                if let label = label {
-                    Text(label)
-                        .font(.system(size: 11, weight: .medium))
-                }
-            }
-            .foregroundColor(selectedTab == tab ? .white : .secondary)
-            .padding(.horizontal, 8)
-            .padding(.vertical, 5)
-            .background(selectedTab == tab ? Color.white.opacity(0.1) : Color.clear)
-            .cornerRadius(6)
-        }
-        .buttonStyle(.plain)
     }
 }
 
@@ -393,6 +416,8 @@ struct CopilotTabView: View {
 
 struct GLMTabView: View {
     @ObservedObject var glmService: GLMService
+    @State private var keyInput: String = ""
+    @State private var keySaved: Bool = false
 
     var body: some View {
         if glmService.error == .noKey {
@@ -430,19 +455,145 @@ struct GLMTabView: View {
     }
 
     private var noKeyView: some View {
-        VStack(spacing: 8) {
+        VStack(spacing: 12) {
             Image(systemName: "key.slash")
-                .font(.system(size: 32))
+                .font(.system(size: 28))
                 .foregroundColor(.secondary)
-            Text("No API key found")
-                .font(.headline)
+            Text("No GLM API key found")
+                .font(.system(size: 13, weight: .semibold))
                 .foregroundColor(.white)
-            Text("Add your GLM_API_KEY in Settings")
+            Text("Paste your API key below or add it in Settings")
                 .font(.caption)
                 .foregroundColor(.secondary)
+                .multilineTextAlignment(.center)
+            HStack(spacing: 6) {
+                SecureField("GLM_API_KEY…", text: $keyInput)
+                    .font(.system(size: 12))
+                    .textFieldStyle(.plain)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 6)
+                    .background(Color.white.opacity(0.07))
+                    .cornerRadius(6)
+                if !keyInput.isEmpty {
+                    Button(keySaved ? "Saved ✓" : "Save") {
+                        GLMKeychainHelper.saveAPIKey(keyInput)
+                        keySaved = true
+                        keyInput = ""
+                    }
+                    .font(.system(size: 11, weight: .medium))
+                    .buttonStyle(.plain)
+                    .foregroundColor(keySaved ? .green : .accentColor)
+                }
+            }
         }
         .frame(maxWidth: .infinity)
-        .padding(.vertical, 24)
+        .padding(.vertical, 20)
+    }
+}
+
+// MARK: - KimiTabView
+
+struct KimiTabView: View {
+    @ObservedObject var kimiService: KimiService
+    @State private var keyInput: String = ""
+    @State private var keySaved: Bool = false
+
+    var body: some View {
+        if kimiService.error == .noKey {
+            noKeyView
+        } else {
+            VStack(spacing: 8) {
+                // Cash balance card
+                balanceRow(
+                    icon: "yensign.circle.fill",
+                    title: "Cash Balance",
+                    value: kimiService.kimiData.cashBalance
+                )
+                // Voucher balance card
+                balanceRow(
+                    icon: "ticket.fill",
+                    title: "Voucher Balance",
+                    value: kimiService.kimiData.voucherBalance
+                )
+                // Total
+                HStack {
+                    Text("Total Available")
+                        .font(.system(size: 12))
+                        .foregroundColor(.secondary)
+                    Spacer()
+                    Text(String(format: "¥%.4f", kimiService.kimiData.totalBalance))
+                        .font(.system(size: 14, weight: .bold, design: .rounded))
+                        .foregroundColor(kimiService.kimiData.totalBalance > 0 ? .green : .red)
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                .background(Color.white.opacity(0.05))
+                .cornerRadius(8)
+
+                if kimiService.error == .fetchFailed {
+                    Text("Failed to fetch balance")
+                        .font(.system(size: 10))
+                        .foregroundColor(.orange)
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func balanceRow(icon: String, title: String, value: Double) -> some View {
+        HStack {
+            Image(systemName: icon)
+                .font(.system(size: 13))
+                .foregroundColor(.secondary)
+                .frame(width: 20)
+            Text(title)
+                .font(.system(size: 13, weight: .medium))
+                .foregroundColor(.white)
+            Spacer()
+            Text(String(format: "¥%.4f", value))
+                .font(.system(size: 13, weight: .semibold, design: .rounded))
+                .foregroundColor(value > 0 ? .white : .secondary)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .background(Color.white.opacity(0.05))
+        .cornerRadius(10)
+    }
+
+    private var noKeyView: some View {
+        VStack(spacing: 12) {
+            Image(systemName: "key.slash")
+                .font(.system(size: 28))
+                .foregroundColor(.secondary)
+            Text("No Kimi API key found")
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundColor(.white)
+            Text("Paste your API key below or add it in Settings")
+                .font(.caption)
+                .foregroundColor(.secondary)
+                .multilineTextAlignment(.center)
+            HStack(spacing: 6) {
+                SecureField("KIMI_API_KEY…", text: $keyInput)
+                    .font(.system(size: 12))
+                    .textFieldStyle(.plain)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 6)
+                    .background(Color.white.opacity(0.07))
+                    .cornerRadius(6)
+                if !keyInput.isEmpty {
+                    Button(keySaved ? "Saved ✓" : "Save") {
+                        KimiKeychainHelper.saveAPIKey(keyInput)
+                        keySaved = true
+                        keyInput = ""
+                    }
+                    .font(.system(size: 11, weight: .medium))
+                    .buttonStyle(.plain)
+                    .foregroundColor(keySaved ? .green : .accentColor)
+                }
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 20)
     }
 }
 
@@ -451,11 +602,14 @@ struct GLMTabView: View {
 struct InlineSettingsView: View {
     @ObservedObject var updaterManager: UpdaterManager
     @ObservedObject var authManager: SessionAuthManager
+    @Binding var selectedTab: Tab
     @AppStorage("refreshInterval") private var refreshInterval: Double = 60
     @AppStorage("timezoneOffset") private var timezoneOffset: Int = TimeZone.current.secondsFromGMT() / 3600
     @State private var launchAtLogin = false
     @State private var glmKeyInput: String = ""
     @State private var glmKeySaved: Bool = false
+    @State private var kimiKeyInput: String = ""
+    @State private var kimiKeySaved: Bool = false
     @AppStorage("menuBarProvider") private var menuBarProvider: String = MenuBarProvider.claude.rawValue
     @AppStorage("notificationsEnabled") private var notificationsEnabled: Bool = false
     @AppStorage("notifyWarning") private var notifyWarning: Int = 80
@@ -463,7 +617,7 @@ struct InlineSettingsView: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 10) {
+          VStack(alignment: .leading, spacing: 10) {
 
                 // MARK: - Accounts
                 settingsSection("Accounts") {
@@ -563,6 +717,54 @@ struct InlineSettingsView: View {
                                 }
                             }
                         }
+
+                        Divider().opacity(0.3)
+
+                        HStack(spacing: 6) {
+                            Image(systemName: "key.fill")
+                                .font(.system(size: 11))
+                                .foregroundColor(.secondary)
+                            Text("Kimi API Key")
+                                .font(.system(size: 11, weight: .medium))
+                                .foregroundColor(.secondary)
+                        }
+
+                        if KimiService.keyIsFromEnvironment {
+                            Text("Using KIMI_API_KEY from environment")
+                                .font(.system(size: 11))
+                                .foregroundColor(.secondary)
+                                .italic()
+                        } else if KimiKeychainHelper.readAPIKey() != nil && kimiKeyInput.isEmpty {
+                            HStack {
+                                Text("••••••••")
+                                    .font(.system(size: 12))
+                                    .foregroundColor(.secondary)
+                                Spacer()
+                                Button("Clear") {
+                                    KimiKeychainHelper.deleteAPIKey()
+                                    kimiKeySaved = false
+                                }
+                                .font(.system(size: 11))
+                                .buttonStyle(.plain)
+                                .foregroundColor(.red)
+                            }
+                        } else {
+                            HStack {
+                                SecureField("Paste API key…", text: $kimiKeyInput)
+                                    .font(.system(size: 12))
+                                    .textFieldStyle(.plain)
+                                if !kimiKeyInput.isEmpty {
+                                    Button(kimiKeySaved ? "Saved ✓" : "Save") {
+                                        KimiKeychainHelper.saveAPIKey(kimiKeyInput)
+                                        kimiKeySaved = true
+                                        kimiKeyInput = ""
+                                    }
+                                    .font(.system(size: 11))
+                                    .buttonStyle(.plain)
+                                    .foregroundColor(kimiKeySaved ? .green : .accentColor)
+                                }
+                            }
+                        }
                     }
                 }
 
@@ -570,37 +772,63 @@ struct InlineSettingsView: View {
                 settingsSection("Display") {
                     VStack(alignment: .leading, spacing: 8) {
                         settingsRow("Menu bar") {
-                            Picker("", selection: $menuBarProvider) {
+                            Menu {
                                 ForEach(MenuBarProvider.allCases, id: \.rawValue) { provider in
-                                    Text(provider.displayName).tag(provider.rawValue)
+                                    Button(provider.displayName) { menuBarProvider = provider.rawValue }
                                 }
+                            } label: {
+                                HStack(spacing: 4) {
+                                    Text(MenuBarProvider(rawValue: menuBarProvider)?.displayName ?? menuBarProvider)
+                                        .font(.system(size: 12))
+                                    Image(systemName: "chevron.up.chevron.down")
+                                        .font(.system(size: 9, weight: .semibold))
+                                }
+                                .foregroundColor(.white)
                             }
-                            .pickerStyle(.segmented)
-                            .labelsHidden()
+                            .menuStyle(.borderlessButton)
+                            .fixedSize()
                         }
 
                         settingsRow("Timezone") {
-                            Picker("", selection: $timezoneOffset) {
-                                Text("PST").tag(-8)
-                                Text("EST").tag(-5)
-                                Text("GMT").tag(0)
-                                Text("CET").tag(1)
-                                Text("MYT").tag(8)
-                                Text("JST").tag(9)
+                            let tzOptions: [(label: String, value: Int)] = [
+                                ("PST", -8), ("EST", -5), ("GMT", 0), ("CET", 1), ("MYT", 8), ("JST", 9)
+                            ]
+                            Menu {
+                                ForEach(tzOptions, id: \.value) { opt in
+                                    Button(opt.label) { timezoneOffset = opt.value }
+                                }
+                            } label: {
+                                HStack(spacing: 4) {
+                                    Text(tzOptions.first(where: { $0.value == timezoneOffset })?.label ?? "\(timezoneOffset >= 0 ? "+" : "")\(timezoneOffset)")
+                                        .font(.system(size: 12))
+                                    Image(systemName: "chevron.up.chevron.down")
+                                        .font(.system(size: 9, weight: .semibold))
+                                }
+                                .foregroundColor(.white)
                             }
-                            .pickerStyle(.segmented)
-                            .labelsHidden()
+                            .menuStyle(.borderlessButton)
+                            .fixedSize()
                         }
 
                         settingsRow("Refresh") {
-                            Picker("", selection: $refreshInterval) {
-                                Text("1m").tag(60.0)
-                                Text("2m").tag(120.0)
-                                Text("3m").tag(180.0)
-                                Text("5m").tag(300.0)
+                            let refreshOptions: [(label: String, value: Double)] = [
+                                ("1m", 60), ("2m", 120), ("3m", 180), ("5m", 300)
+                            ]
+                            Menu {
+                                ForEach(refreshOptions, id: \.value) { opt in
+                                    Button(opt.label) { refreshInterval = opt.value }
+                                }
+                            } label: {
+                                HStack(spacing: 4) {
+                                    Text(refreshOptions.first(where: { $0.value == refreshInterval })?.label ?? "\(Int(refreshInterval))s")
+                                        .font(.system(size: 12))
+                                    Image(systemName: "chevron.up.chevron.down")
+                                        .font(.system(size: 9, weight: .semibold))
+                                }
+                                .foregroundColor(.white)
                             }
-                            .pickerStyle(.segmented)
-                            .labelsHidden()
+                            .menuStyle(.borderlessButton)
+                            .fixedSize()
                         }
                     }
                 }
@@ -617,24 +845,46 @@ struct InlineSettingsView: View {
                             }
 
                         if notificationsEnabled {
-                            settingsRow("Warning") {
-                                Picker("", selection: $notifyWarning) {
-                                    Text("50%").tag(50)
-                                    Text("75%").tag(75)
-                                    Text("80%").tag(80)
+                            settingsRow("Warning", labelColor: .yellow) {
+                                let warningOptions: [(label: String, value: Int)] = [
+                                    ("50%", 50), ("75%", 75), ("80%", 80)
+                                ]
+                                Menu {
+                                    ForEach(warningOptions, id: \.value) { opt in
+                                        Button(opt.label) { notifyWarning = opt.value }
+                                    }
+                                } label: {
+                                    HStack(spacing: 4) {
+                                        Text(warningOptions.first(where: { $0.value == notifyWarning })?.label ?? "\(notifyWarning)%")
+                                            .font(.system(size: 12))
+                                        Image(systemName: "chevron.up.chevron.down")
+                                            .font(.system(size: 9, weight: .semibold))
+                                    }
+                                    .foregroundColor(.white)
                                 }
-                                .pickerStyle(.segmented)
-                                .labelsHidden()
+                                .menuStyle(.borderlessButton)
+                                .fixedSize()
                             }
 
-                            settingsRow("Critical") {
-                                Picker("", selection: $notifyCritical) {
-                                    Text("85%").tag(85)
-                                    Text("90%").tag(90)
-                                    Text("95%").tag(95)
+                            settingsRow("Critical", labelColor: .red) {
+                                let criticalOptions: [(label: String, value: Int)] = [
+                                    ("85%", 85), ("90%", 90), ("95%", 95)
+                                ]
+                                Menu {
+                                    ForEach(criticalOptions, id: \.value) { opt in
+                                        Button(opt.label) { notifyCritical = opt.value }
+                                    }
+                                } label: {
+                                    HStack(spacing: 4) {
+                                        Text(criticalOptions.first(where: { $0.value == notifyCritical })?.label ?? "\(notifyCritical)%")
+                                            .font(.system(size: 12))
+                                        Image(systemName: "chevron.up.chevron.down")
+                                            .font(.system(size: 9, weight: .semibold))
+                                    }
+                                    .foregroundColor(.white)
                                 }
-                                .pickerStyle(.segmented)
-                                .labelsHidden()
+                                .menuStyle(.borderlessButton)
+                                .fixedSize()
                             }
                         }
                     }
@@ -685,10 +935,10 @@ struct InlineSettingsView: View {
                             }
                             .foregroundColor(.red)
                         }
-                        .buttonStyle(.plain)
+                         .buttonStyle(.plain)
                     }
-                }
             }
+          }
         }
         .onAppear {
             launchAtLogin = SMAppService.mainApp.status == .enabled
@@ -711,11 +961,12 @@ struct InlineSettingsView: View {
         }
     }
 
-    private func settingsRow<Content: View>(_ label: String, @ViewBuilder content: () -> Content) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
+    private func settingsRow<Content: View>(_ label: String, labelColor: Color = .secondary, @ViewBuilder content: () -> Content) -> some View {
+        HStack {
             Text(label)
-                .font(.system(size: 11))
-                .foregroundColor(.secondary)
+                .font(.system(size: 12))
+                .foregroundColor(labelColor)
+            Spacer()
             content()
         }
     }
