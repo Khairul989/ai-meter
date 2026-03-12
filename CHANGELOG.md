@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.16.1] - 2026-03-12
+
+### Added
+
+- Tab bar navigation restored as default — provider tabs with brand icons for Claude and Copilot
+- Navigation style picker in Settings > Display — switch between "Tab Bar" and "Dropdown"
+
+### Fixed
+
+- Removed duplicate chevron icons from all dropdown menus
+- Claude and Copilot brand icons now display at correct size in dropdown menu
+
 ## [1.16.0] - 2026-03-12
 
 ### Added

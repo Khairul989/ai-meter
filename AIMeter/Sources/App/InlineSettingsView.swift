@@ -17,6 +17,7 @@ struct InlineSettingsView: View {
     @AppStorage("notificationsEnabled") private var notificationsEnabled: Bool = false
     @AppStorage("notifyWarning") private var notifyWarning: Int = 80
     @AppStorage("notifyCritical") private var notifyCritical: Int = 90
+    @AppStorage("navigationStyle") private var navigationStyle: String = "tabbar"
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -173,6 +174,21 @@ struct InlineSettingsView: View {
                 // MARK: - Display
                 settingsSection("Display") {
                     VStack(alignment: .leading, spacing: 8) {
+                        settingsRow("Navigation") {
+                            Menu {
+                                Button("Tab Bar") { navigationStyle = "tabbar" }
+                                Button("Dropdown") { navigationStyle = "dropdown" }
+                            } label: {
+                                HStack(spacing: 4) {
+                                    Text(navigationStyle == "tabbar" ? "Tab Bar" : "Dropdown")
+                                        .font(.system(size: 12))
+                                }
+                                .foregroundColor(.white)
+                            }
+                            .menuStyle(.borderlessButton)
+                            .fixedSize()
+                        }
+
                         settingsRow("Menu bar") {
                             Menu {
                                 ForEach(MenuBarProvider.allCases, id: \.rawValue) { provider in

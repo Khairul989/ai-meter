@@ -16,6 +16,60 @@ enum Tab {
     }
 }
 
+// MARK: - TabIcon
+
+enum TabIcon {
+    case system(String)
+    case asset(String)
+}
+
+// MARK: - TabBarView
+
+struct TabBarView: View {
+    @Binding var selectedTab: Tab
+
+    var body: some View {
+        HStack(spacing: 4) {
+            tabButton(.claude,   icon: .asset("claude"),    label: "Claude")
+            tabButton(.copilot,  icon: .asset("copilot"),   label: "Copilot")
+            tabButton(.glm,      icon: .system("z.square"), label: "GLM")
+            tabButton(.kimi,     icon: .system("k.square"), label: "Kimi")
+            Spacer()
+            tabButton(.settings, icon: .system("gear"),     label: nil)
+        }
+    }
+
+    private func tabButton(_ tab: Tab, icon: TabIcon, label: String?) -> some View {
+        Button {
+            withAnimation(.easeInOut(duration: 0.2)) { selectedTab = tab }
+        } label: {
+            HStack(spacing: 4) {
+                switch icon {
+                case .system(let name):
+                    Image(systemName: name)
+                        .font(.system(size: 11))
+                case .asset(let name):
+                    Image(name)
+                        .resizable()
+                        .renderingMode(.template)
+                        .scaledToFit()
+                        .frame(width: 13, height: 13)
+                }
+                if let label = label {
+                    Text(label)
+                        .font(.system(size: 11, weight: .medium))
+                }
+            }
+            .foregroundColor(selectedTab == tab ? .white : .secondary)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 5)
+            .background(selectedTab == tab ? Color.white.opacity(0.1) : Color.clear)
+            .clipShape(RoundedRectangle(cornerRadius: 6))
+        }
+        .buttonStyle(.plain)
+    }
+}
+
 // MARK: - PopoverView
 
 struct PopoverView: View {
@@ -29,9 +83,12 @@ struct PopoverView: View {
     @EnvironmentObject var statsService: ClaudeCodeStatsService
     var onRefresh: () -> Void
     @AppStorage("timezoneOffset") private var timezoneOffset: Int = TimeZone.current.secondsFromGMT() / 3600
+    @AppStorage("navigationStyle") private var navigationStyle: String = "tabbar"
     @State private var selectedTab: Tab = .claude
     @State private var previousTab: Tab = .claude
     @State private var eventMonitor: Any?
+
+    private var useTabBar: Bool { navigationStyle == "tabbar" }
 
     private var configuredTimeZone: TimeZone {
         TimeZone(secondsFromGMT: timezoneOffset * 3600) ?? .current
@@ -39,7 +96,7 @@ struct PopoverView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            // Header: provider dropdown + settings gear
+            // Header
             HStack(alignment: .center, spacing: 8) {
                 Text("AI Meter")
                     .font(.system(size: 15, weight: .bold))
@@ -47,62 +104,70 @@ struct PopoverView: View {
 
                 Spacer()
 
-                // Provider dropdown — hidden on settings tab
-                if selectedTab != .settings {
-                    Menu {
-                        Button { withAnimation(.easeInOut(duration: 0.2)) { selectedTab = .claude } }   label: { Label("Claude",  systemImage: "sparkles") }
-                        Button { withAnimation(.easeInOut(duration: 0.2)) { selectedTab = .copilot } }  label: { Label("Copilot", systemImage: "chevron.left.forwardslash.chevron.right") }
-                        Button { withAnimation(.easeInOut(duration: 0.2)) { selectedTab = .glm } }      label: { Label("GLM",     systemImage: "z.square") }
-                        Button { withAnimation(.easeInOut(duration: 0.2)) { selectedTab = .kimi } }     label: { Label("Kimi",    systemImage: "k.square") }
-                    } label: {
-                        HStack(spacing: 4) {
-                            Text(selectedTab.displayName)
-                                .font(.system(size: 12, weight: .medium))
-                                .foregroundColor(.white)
+                if !useTabBar {
+                    // Dropdown navigation
+                    if selectedTab != .settings {
+                        Menu {
+                            Button { withAnimation(.easeInOut(duration: 0.2)) { selectedTab = .claude } }   label: { Label { Text("Claude") } icon: { Image("claude-small").renderingMode(.template) } }
+                            Button { withAnimation(.easeInOut(duration: 0.2)) { selectedTab = .copilot } }  label: { Label { Text("Copilot") } icon: { Image("copilot-small").renderingMode(.template) } }
+                            Button { withAnimation(.easeInOut(duration: 0.2)) { selectedTab = .glm } }      label: { Label("GLM",     systemImage: "z.square") }
+                            Button { withAnimation(.easeInOut(duration: 0.2)) { selectedTab = .kimi } }     label: { Label("Kimi",    systemImage: "k.square") }
+                        } label: {
+                            HStack(spacing: 4) {
+                                Text(selectedTab.displayName)
+                                    .font(.system(size: 12, weight: .medium))
+                                    .foregroundColor(.white)
+                            }
+                            .padding(.horizontal, 9)
+                            .padding(.vertical, 5)
+                            .background(Color.white.opacity(0.08))
+                            .clipShape(RoundedRectangle(cornerRadius: 7))
                         }
-                        .padding(.horizontal, 9)
-                        .padding(.vertical, 5)
-                        .background(Color.white.opacity(0.08))
-                        .clipShape(RoundedRectangle(cornerRadius: 7))
+                        .menuStyle(.borderlessButton)
+                        .fixedSize()
                     }
-                    .menuStyle(.borderlessButton)
-                    .fixedSize()
-                }
 
-                // Settings icon / Back button
-                if selectedTab == .settings {
-                    Button {
-                        withAnimation(.easeInOut(duration: 0.2)) { selectedTab = previousTab }
-                    } label: {
-                        HStack(spacing: 4) {
-                            Image(systemName: "chevron.left")
-                                .font(.system(size: 11, weight: .semibold))
-                            Text("Back")
-                                .font(.system(size: 12, weight: .medium))
-                        }
-                        .foregroundColor(.secondary)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 5)
-                        .background(Color.white.opacity(0.08))
-                        .clipShape(RoundedRectangle(cornerRadius: 7))
-                    }
-                    .buttonStyle(.plain)
-                } else {
-                    Button {
-                        previousTab = selectedTab
-                        withAnimation(.easeInOut(duration: 0.2)) { selectedTab = .settings }
-                    } label: {
-                        Image(systemName: "gear")
-                            .font(.system(size: 13))
+                    // Settings icon / Back button (dropdown mode only)
+                    if selectedTab == .settings {
+                        Button {
+                            withAnimation(.easeInOut(duration: 0.2)) { selectedTab = previousTab }
+                        } label: {
+                            HStack(spacing: 4) {
+                                Image(systemName: "chevron.left")
+                                    .font(.system(size: 11, weight: .semibold))
+                                Text("Back")
+                                    .font(.system(size: 12, weight: .medium))
+                            }
                             .foregroundColor(.secondary)
-                            .padding(6)
-                            .background(Color.clear)
-                            .clipShape(RoundedRectangle(cornerRadius: 6))
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 5)
+                            .background(Color.white.opacity(0.08))
+                            .clipShape(RoundedRectangle(cornerRadius: 7))
+                        }
+                        .buttonStyle(.plain)
+                    } else {
+                        Button {
+                            previousTab = selectedTab
+                            withAnimation(.easeInOut(duration: 0.2)) { selectedTab = .settings }
+                        } label: {
+                            Image(systemName: "gear")
+                                .font(.system(size: 13))
+                                .foregroundColor(.secondary)
+                                .padding(6)
+                                .background(Color.clear)
+                                .clipShape(RoundedRectangle(cornerRadius: 6))
+                        }
+                        .buttonStyle(.plain)
                     }
-                    .buttonStyle(.plain)
                 }
             }
-            .padding(.bottom, 12)
+            .padding(.bottom, useTabBar ? 4 : 12)
+
+            // Tab bar (when enabled)
+            if useTabBar {
+                TabBarView(selectedTab: $selectedTab)
+                    .padding(.bottom, 8)
+            }
 
             // Content
             switch selectedTab {
