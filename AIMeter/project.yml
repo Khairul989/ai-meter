@@ -35,8 +35,8 @@ targets:
       properties:
         LSUIElement: true
         CFBundleDisplayName: AIMeter
-        CFBundleShortVersionString: "1.14.0"
-        CFBundleVersion: "16"
+        CFBundleShortVersionString: "1.15.0"
+        CFBundleVersion: "17"
         SUFeedURL: "https://github.com/Khairul989/ai-meter/releases/latest/download/appcast.xml"
         SUPublicEDKey: "2gKYaPv+41CVza5bqUH/QI6KHLBWa6VjVSTWEtKPpIM="
         SUEnableAutomaticChecks: true
@@ -69,8 +69,8 @@ targets:
       path: Resources/WidgetInfo.plist
       properties:
         CFBundleDisplayName: AI Meter Widget
-        CFBundleShortVersionString: "1.14.0"
-        CFBundleVersion: "16"
+        CFBundleShortVersionString: "1.15.0"
+        CFBundleVersion: "17"
         NSExtension:
           NSExtensionPointIdentifier: com.apple.widgetkit-extension
     settings:

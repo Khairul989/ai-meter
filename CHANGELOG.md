@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.15.0] - 2026-03-12
+
+### Added
+
+- Kimi (Moonshot AI) as a new provider — displays cash and voucher balance in CNY
+- Inline API key entry on the Kimi tab (no need to go to Settings first)
+- Provider dropdown in header replaces the old tab bar — cleaner navigation with more room for providers
+- Back button in Settings returns to the previously active provider tab
+- Inline API key entry on GLM tab (consistent with Kimi)
+
+### Changed
+
+- Popover width increased from 320 to 360 for better readability
+- Settings pickers replaced with dropdown menus (Menu bar, Timezone, Refresh, Warning, Critical thresholds)
+- Warning and Critical notification rows now highlighted in yellow and red respectively
+
 ## [1.14.0] - 2026-03-11
 
 ### Added
