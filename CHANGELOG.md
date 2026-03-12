@@ -5,6 +5,38 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.16.0] - 2026-03-12
+
+### Added
+
+- Keychain-based credential storage — session keys and API keys now stored securely with `kSecAttrAccessibleWhenUnlockedThisDeviceOnly`
+- Auto-migration from legacy plaintext files to Keychain on first launch
+- Ephemeral URLSession for all API calls — no cookie leakage across requests
+- Unified `PollingServiceBase` — shared timer management for all 5 polling services
+- Generic `HistoryServiceBase` — deduplicated history persistence for quota and Copilot history
+- Extracted tab views: ClaudeTabView, CopilotTabView, GLMTabView, KimiTabView, InlineSettingsView (PopoverView reduced from 974 to ~250 lines)
+- `@EnvironmentObject` injection replacing 8 `@ObservedObject` parameters
+- Error banner on Claude tab when fetch fails
+- Keyboard shortcuts: Cmd+1-4 for tab switching, Cmd+Q for quit
+- Sign-out confirmation dialog
+- Accessibility labels on usage cards, gauges, progress bars, and quota rows
+- Orange color tier for 80-95% utilization (green < 50%, yellow < 80%, orange < 95%, red >= 95%)
+- Gauge progress clamped to 100% max
+- `onKeySaved` callback — saving GLM/Kimi API key triggers immediate fetch
+- DRY version management — `MARKETING_VERSION` and `CURRENT_PROJECT_VERSION` defined once in project.yml
+- New tests: ResetTimeFormatterTests, SessionAuthManagerTests, ClaudeCodeStatsServiceTests (16 new tests, 49 total)
+- Secrets added to .gitignore (.env, .pem, .key, .p12)
+
+### Changed
+
+- Cached `DateFormatter` instances in ClaudeCodeStatsService (no longer allocated per render)
+- `validateSessionKey` converted from callback-based to async/await
+- Keychain helpers unified via generic `APIKeyKeychainHelper`
+- API key resolution priority: Keychain first, environment variable fallback
+- Removed duplicate chevron icons from all dropdown menus
+- Code signing disabled by default (no Apple Developer account required to build)
+- Widget description updated to "Monitor AI usage — Claude and Copilot"
+
 ## [1.15.0] - 2026-03-12
 
 ### Added

@@ -46,7 +46,7 @@ private let latestModels: Set<String> = [
 ]
 
 @MainActor
-final class ClaudeCodeStatsService: ObservableObject {
+final class ClaudeCodeStatsService: PollingServiceBase {
     @Published var models: [ModelTokenUsage] = []
     @Published var totalTokens: Int = 0
     @Published var isLoading = true
@@ -60,7 +60,6 @@ final class ClaudeCodeStatsService: ObservableObject {
         didSet { applyTrend() }
     }
 
-    private var timer: Timer?
     // Cached daily entries: [date_string: [modelId: (in, out)]]
     private var dailyCache: [String: [String: (input: Int, output: Int)]] = [:]
     // Cached daily message counts: [date_string: messageCount]
@@ -76,27 +75,32 @@ final class ClaudeCodeStatsService: ObservableObject {
             .appendingPathComponent(".claude/stats-cache.json")
     }
 
-    private static var projectsDir: URL {
-        FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent(".claude/projects")
-    }
-
     private static var dailyCacheFile: URL {
         FileManager.default.homeDirectoryForCurrentUser
             .appendingPathComponent(".config/aimeter/daily-token-cache.json")
     }
 
-    func start(interval: TimeInterval = 60) {
+    private static let dayFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "yyyy-MM-dd"
+        f.timeZone = .current
+        return f
+    }()
+
+    private static let utcDayFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "yyyy-MM-dd"
+        f.timeZone = TimeZone(identifier: "UTC")
+        return f
+    }()
+
+    override func start(interval: TimeInterval = 60) {
         load()
-        timer?.invalidate()
-        timer = Timer.scheduledTimer(withTimeInterval: interval, repeats: true) { [weak self] _ in
-            Task { @MainActor in self?.load() }
-        }
+        super.start(interval: interval)
     }
 
-    func stop() {
-        timer?.invalidate()
-        timer = nil
+    override func tick() async {
+        load()
     }
 
     func load() {
@@ -175,9 +179,7 @@ final class ClaudeCodeStatsService: ObservableObject {
     private func saveDiskCache() {
         var daily: [String: [String: [String: Int]]] = [:]
         let cutoffDate = Calendar.current.date(byAdding: .day, value: -31, to: Date())!
-        let formatter = DateFormatter()
-        formatter.dateFormat = "yyyy-MM-dd"
-        formatter.timeZone = TimeZone(identifier: "UTC")
+        let formatter = Self.utcDayFormatter
 
         let cutoffKey = formatter.string(from: cutoffDate)
         for (date, models) in dailyCache where date >= cutoffKey {
@@ -316,9 +318,7 @@ final class ClaudeCodeStatsService: ObservableObject {
 
             let cal = Calendar.current
             let today = cal.startOfDay(for: Date())
-            let formatter = DateFormatter()
-            formatter.dateFormat = "yyyy-MM-dd"
-            formatter.timeZone = .current
+            let formatter = Self.dayFormatter
 
             var merged: [String: (input: Int, output: Int)] = [:]
             for dayOffset in 0...days {
@@ -360,9 +360,7 @@ final class ClaudeCodeStatsService: ObservableObject {
 
         let cal = Calendar.current
         let today = cal.startOfDay(for: Date())
-        let formatter = DateFormatter()
-        formatter.dateFormat = "yyyy-MM-dd"
-        formatter.timeZone = .current
+        let formatter = Self.dayFormatter
 
         var points: [DailyTrendPoint] = []
         for dayOffset in (0...days).reversed() {

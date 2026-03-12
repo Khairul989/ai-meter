@@ -58,7 +58,7 @@ struct AIMeterWidget: Widget {
                 .containerBackground(.black.gradient, for: .widget)
         }
         .configurationDisplayName("AI Meter")
-        .description("Monitor Claude API usage limits")
+        .description("Monitor AI usage — Claude and Copilot")
         .supportedFamilies([.systemSmall, .systemMedium])
     }
 }

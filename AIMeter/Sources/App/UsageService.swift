@@ -1,14 +1,12 @@
 import Foundation
-import Combine
 import WidgetKit
 
 @MainActor
-final class UsageService: ObservableObject {
+final class UsageService: PollingServiceBase {
     @Published var usageData: UsageData = SharedDefaults.load() ?? .empty
     @Published var isStale: Bool = false
     @Published var error: APIError? = nil
 
-    private var timer: Timer?
     private var refreshInterval: TimeInterval = 60
     private weak var authManager: SessionAuthManager?
     private weak var historyService: QuotaHistoryService?
@@ -21,22 +19,11 @@ final class UsageService: ObservableObject {
             self.usageData = cached
             self.isStale = Date().timeIntervalSince(cached.fetchedAt) > refreshInterval * 2
         }
-        Task { await fetch() }
-        timer = Timer.scheduledTimer(withTimeInterval: interval, repeats: true) { [weak self] _ in
-            Task { [weak self] in await self?.fetch() }
-        }
+        super.start(interval: interval)
     }
 
-    func stop() {
-        timer?.invalidate()
-        timer = nil
-    }
-
-    private func rescheduleTimer(interval: TimeInterval) {
-        timer?.invalidate()
-        timer = Timer.scheduledTimer(withTimeInterval: interval, repeats: true) { [weak self] _ in
-            Task { [weak self] in await self?.fetch() }
-        }
+    override func tick() async {
+        await fetch()
     }
 
     func fetch() async {

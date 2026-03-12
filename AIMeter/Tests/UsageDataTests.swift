@@ -39,7 +39,9 @@ final class UsageDataTests: XCTestCase {
         XCTAssertEqual(UsageColor.forUtilization(49), .green)
         XCTAssertEqual(UsageColor.forUtilization(50), .yellow)
         XCTAssertEqual(UsageColor.forUtilization(79), .yellow)
-        XCTAssertEqual(UsageColor.forUtilization(80), .red)
+        XCTAssertEqual(UsageColor.forUtilization(80), .orange)
+        XCTAssertEqual(UsageColor.forUtilization(94), .orange)
+        XCTAssertEqual(UsageColor.forUtilization(95), .red)
         XCTAssertEqual(UsageColor.forUtilization(100), .red)
     }
 

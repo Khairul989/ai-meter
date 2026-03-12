@@ -5,6 +5,7 @@ enum UsageColor {
         switch value {
         case ..<50: return .green
         case ..<80: return .yellow
+        case ..<95: return .orange
         default: return .red
         }
     }

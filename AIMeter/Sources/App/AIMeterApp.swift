@@ -48,7 +48,15 @@ struct AIMeterApp: App {
             }
         }
         MenuBarExtra {
-            PopoverView(service: service, copilotService: copilotService, copilotHistoryService: copilotHistoryService, glmService: glmService, kimiService: kimiService, updaterManager: updaterManager, authManager: authManager, statsService: statsService, onRefresh: refreshAll)
+            PopoverView(onRefresh: refreshAll)
+                .environmentObject(service)
+                .environmentObject(copilotService)
+                .environmentObject(copilotHistoryService)
+                .environmentObject(glmService)
+                .environmentObject(kimiService)
+                .environmentObject(updaterManager)
+                .environmentObject(authManager)
+                .environmentObject(statsService)
                 .task {
                     service.start(interval: refreshInterval, authManager: authManager, historyService: historyService)
                     copilotService.start(interval: refreshInterval, historyService: copilotHistoryService)

@@ -37,6 +37,9 @@ struct UsageCardView: View {
         .padding(.horizontal, 12)
         .padding(.vertical, 10)
         .background(Color.white.opacity(0.05))
-        .cornerRadius(10)
+        .clipShape(RoundedRectangle(cornerRadius: 10))
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("\(title) usage, \(percentage) percent. \(subtitle)")
+        .accessibilityValue(resetText.map { "Reset \($0)" } ?? "")
     }
 }

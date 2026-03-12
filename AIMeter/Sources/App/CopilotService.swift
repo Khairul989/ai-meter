@@ -1,14 +1,12 @@
 import Foundation
-import Combine
 import WidgetKit
 
 @MainActor
-final class CopilotService: ObservableObject {
+final class CopilotService: PollingServiceBase {
     @Published var copilotData: CopilotUsageData = SharedDefaults.loadCopilot() ?? .empty
     @Published var isStale: Bool = false
     @Published var error: CopilotError? = nil
 
-    private var timer: Timer?
     private var refreshInterval: TimeInterval = 60
     // Caller must retain the CopilotHistoryService instance; this service holds only a weak reference
     private weak var copilotHistoryService: CopilotHistoryService?
@@ -27,23 +25,11 @@ final class CopilotService: ObservableObject {
             self.copilotData = cached
             self.isStale = Date().timeIntervalSince(cached.fetchedAt) > refreshInterval * 2
         }
-        // Fetch immediately then on timer
-        Task { await fetch() }
-        timer = Timer.scheduledTimer(withTimeInterval: interval, repeats: true) { [weak self] _ in
-            Task { [weak self] in await self?.fetch() }
-        }
+        super.start(interval: interval)
     }
 
-    func stop() {
-        timer?.invalidate()
-        timer = nil
-    }
-
-    private func rescheduleTimer(interval: TimeInterval) {
-        timer?.invalidate()
-        timer = Timer.scheduledTimer(withTimeInterval: interval, repeats: true) { [weak self] _ in
-            Task { [weak self] in await self?.fetch() }
-        }
+    override func tick() async {
+        await fetch()
     }
 
     func fetch() async {

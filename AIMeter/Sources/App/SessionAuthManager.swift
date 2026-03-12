@@ -18,19 +18,6 @@ final class SessionAuthManager: ObservableObject {
     private(set) var sessionKey: String?
     private(set) var organizationId: String?
 
-    private static var configDir: URL {
-        let dir = FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent(".config/aimeter", isDirectory: true)
-        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-        return dir
-    }
-
-    private static var sessionFile: URL { configDir.appendingPathComponent("session") }
-    private static var orgFile: URL { configDir.appendingPathComponent("org") }
-    private static var orgNameFile: URL { configDir.appendingPathComponent("org_name") }
-    private static var planFile: URL { configDir.appendingPathComponent("plan") }
-    private static var capsFile: URL { configDir.appendingPathComponent("capabilities") }
-
     init() {
         loadCredentials()
     }
@@ -38,26 +25,81 @@ final class SessionAuthManager: ObservableObject {
     // MARK: - Credential Storage
 
     private func loadCredentials() {
-        sessionKey = readFile(Self.sessionFile)
-        organizationId = readFile(Self.orgFile)
-        organizationName = readFile(Self.orgNameFile)
-        planName = readFile(Self.planFile)
-        if let capsData = try? Data(contentsOf: Self.capsFile),
+        sessionKey = ClaudeSessionKeychain.read(account: .sessionKey)
+        organizationId = ClaudeSessionKeychain.read(account: .organizationId)
+        organizationName = ClaudeSessionKeychain.read(account: .orgName)
+        planName = ClaudeSessionKeychain.read(account: .planName)
+        if let capsString = ClaudeSessionKeychain.read(account: .capabilities),
+           let capsData = capsString.data(using: .utf8),
            let caps = try? JSONDecoder().decode([String].self, from: capsData) {
             capabilities = caps
         }
+
+        // Migration: if Keychain empty but legacy files exist, migrate
+        if sessionKey == nil {
+            migrateFromLegacyFiles()
+        }
+
         isAuthenticated = sessionKey != nil && organizationId != nil
+    }
+
+    private func migrateFromLegacyFiles() {
+        let configDir = FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent(".config/aimeter", isDirectory: true)
+
+        let files: [(URL, ClaudeSessionKeychain.Account)] = [
+            (configDir.appendingPathComponent("session"), .sessionKey),
+            (configDir.appendingPathComponent("org"), .organizationId),
+            (configDir.appendingPathComponent("org_name"), .orgName),
+            (configDir.appendingPathComponent("plan"), .planName),
+        ]
+
+        var migrated = false
+        for (fileURL, account) in files {
+            guard let data = try? Data(contentsOf: fileURL),
+                  let str = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines),
+                  !str.isEmpty else { continue }
+            ClaudeSessionKeychain.save(account: account, value: str)
+            migrated = true
+        }
+
+        // Migrate capabilities
+        let capsFile = configDir.appendingPathComponent("capabilities")
+        if let capsData = try? Data(contentsOf: capsFile),
+           let _ = try? JSONDecoder().decode([String].self, from: capsData) {
+            ClaudeSessionKeychain.save(account: .capabilities, value: String(data: capsData, encoding: .utf8) ?? "")
+        }
+
+        if migrated {
+            // Reload from keychain
+            sessionKey = ClaudeSessionKeychain.read(account: .sessionKey)
+            organizationId = ClaudeSessionKeychain.read(account: .organizationId)
+            organizationName = ClaudeSessionKeychain.read(account: .orgName)
+            planName = ClaudeSessionKeychain.read(account: .planName)
+            if let capsString = ClaudeSessionKeychain.read(account: .capabilities),
+               let capsData = capsString.data(using: .utf8),
+               let caps = try? JSONDecoder().decode([String].self, from: capsData) {
+                capabilities = caps
+            }
+
+            // Delete legacy files after successful migration
+            for (fileURL, _) in files {
+                try? FileManager.default.removeItem(at: fileURL)
+            }
+            try? FileManager.default.removeItem(at: capsFile)
+        }
     }
 
     func saveCredentials(sessionKey: String, orgId: String, orgName: String,
                          planName: String? = nil, capabilities: [String] = []) {
-        writeFile(Self.sessionFile, content: sessionKey)
-        writeFile(Self.orgFile, content: orgId)
-        writeFile(Self.orgNameFile, content: orgName)
-        if let plan = planName { writeFile(Self.planFile, content: plan) }
+        ClaudeSessionKeychain.save(account: .sessionKey, value: sessionKey)
+        ClaudeSessionKeychain.save(account: .organizationId, value: orgId)
+        ClaudeSessionKeychain.save(account: .orgName, value: orgName)
+        if let plan = planName { ClaudeSessionKeychain.save(account: .planName, value: plan) }
         if !capabilities.isEmpty,
-           let data = try? JSONEncoder().encode(capabilities) {
-            try? data.write(to: Self.capsFile, options: .atomic)
+           let data = try? JSONEncoder().encode(capabilities),
+           let str = String(data: data, encoding: .utf8) {
+            ClaudeSessionKeychain.save(account: .capabilities, value: str)
         }
         self.sessionKey = sessionKey
         self.organizationId = orgId
@@ -69,11 +111,7 @@ final class SessionAuthManager: ObservableObject {
     }
 
     func signOut() {
-        try? FileManager.default.removeItem(at: Self.sessionFile)
-        try? FileManager.default.removeItem(at: Self.orgFile)
-        try? FileManager.default.removeItem(at: Self.orgNameFile)
-        try? FileManager.default.removeItem(at: Self.planFile)
-        try? FileManager.default.removeItem(at: Self.capsFile)
+        ClaudeSessionKeychain.deleteAll()
         sessionKey = nil
         organizationId = nil
         organizationName = nil
@@ -111,17 +149,6 @@ final class SessionAuthManager: ObservableObject {
         return nil
     }
 
-    private func readFile(_ url: URL) -> String? {
-        guard let data = try? Data(contentsOf: url) else { return nil }
-        let str = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines)
-        return str?.isEmpty == false ? str : nil
-    }
-
-    private func writeFile(_ url: URL, content: String) {
-        try? Data(content.utf8).write(to: url, options: .atomic)
-        try? FileManager.default.setAttributes(
-            [.posixPermissions: 0o600], ofItemAtPath: url.path)
-    }
 }
 
 // MARK: - WebLoginWindowManager
@@ -255,63 +282,53 @@ final class WebLoginCoordinator: NSObject, ObservableObject, WKNavigationDelegat
     }
 
     private func validateSessionKey(_ sessionKey: String) {
-        DispatchQueue.main.async { self.loginState = .validating }
+        loginState = .validating
 
-        let url = URL(string: "https://claude.ai/api/organizations")!
-        var request = URLRequest(url: url)
-        request.httpMethod = "GET"
-        ClaudeHeaderBuilder.applyHeaders(to: &request, sessionKey: sessionKey)
+        Task { @MainActor in
+            let url = URL(string: "https://claude.ai/api/organizations")!
+            var request = URLRequest(url: url)
+            request.httpMethod = "GET"
+            ClaudeHeaderBuilder.applyHeaders(to: &request, sessionKey: sessionKey)
 
-        URLSession.shared.dataTask(with: request) { [weak self] data, response, error in
-            guard let self, let data else {
-                DispatchQueue.main.async {
-                    self?.loginState = .failed(message: error?.localizedDescription ?? "Network error")
-                    self?.startCookieMonitoring()
+            do {
+                let session = URLSession(configuration: .ephemeral)
+                let (data, response) = try await session.data(for: request)
+
+                if let http = response as? HTTPURLResponse, http.statusCode != 200 {
+                    loginState = .failed(message: "HTTP \(http.statusCode)")
+                    startCookieMonitoring()
+                    return
                 }
-                return
-            }
 
-            if let http = response as? HTTPURLResponse, http.statusCode != 200 {
-                DispatchQueue.main.async {
-                    self.loginState = .failed(message: "HTTP \(http.statusCode)")
-                    self.startCookieMonitoring()
+                guard let orgsJson = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]],
+                      let first = orgsJson.first,
+                      let uuid = first["uuid"] as? String,
+                      let name = first["name"] as? String else {
+                    loginState = .failed(message: "No organizations found")
+                    startCookieMonitoring()
+                    return
                 }
-                return
-            }
 
-            // Parse orgs with flexible field capture for plan detection
-            guard let orgsJson = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]],
-                  let first = orgsJson.first,
-                  let uuid = first["uuid"] as? String,
-                  let name = first["name"] as? String else {
-                DispatchQueue.main.async {
-                    self.loginState = .failed(message: "No organizations found")
-                    self.startCookieMonitoring()
-                }
-                return
-            }
+                // Extract plan from rate_limit_tier (e.g. "default_claude_max_5x" → "Max 5×")
+                let rateLimitTier = first["rate_limit_tier"] as? String ?? ""
+                let planName = SessionAuthManager.parsePlanName(rateLimitTier: rateLimitTier)
+                let capabilities = first["capabilities"] as? [String] ?? []
 
-            // Extract plan from rate_limit_tier (e.g. "default_claude_max_5x" → "Max 5×")
-            let rateLimitTier = first["rate_limit_tier"] as? String ?? ""
-            let planName = SessionAuthManager.parsePlanName(rateLimitTier: rateLimitTier)
-            let capabilities = first["capabilities"] as? [String] ?? []
-
-            DispatchQueue.main.async {
-                Task { @MainActor in
-                    self.authManager?.saveCredentials(
-                        sessionKey: sessionKey,
-                        orgId: uuid,
-                        orgName: name,
-                        planName: planName,
-                        capabilities: capabilities
-                    )
-                    self.loginState = .success(name: name)
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
-                        WebLoginWindowManager.shared.closeLoginWindow()
-                    }
-                }
+                authManager?.saveCredentials(
+                    sessionKey: sessionKey,
+                    orgId: uuid,
+                    orgName: name,
+                    planName: planName,
+                    capabilities: capabilities
+                )
+                loginState = .success(name: name)
+                try? await Task.sleep(for: .milliseconds(1500))
+                WebLoginWindowManager.shared.closeLoginWindow()
+            } catch {
+                loginState = .failed(message: error.localizedDescription)
+                startCookieMonitoring()
             }
-        }.resume()
+        }
     }
 
     // MARK: - WKUIDelegate (popup handling for Google Sign-In)

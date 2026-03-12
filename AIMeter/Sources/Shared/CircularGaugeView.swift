@@ -6,7 +6,7 @@ struct CircularGaugeView: View {
     let size: CGFloat
 
     private var color: Color { UsageColor.forUtilization(percentage) }
-    private var progress: Double { Double(percentage) / 100.0 }
+    private var progress: Double { min(Double(percentage), 100.0) / 100.0 }
 
     var body: some View {
         ZStack {
@@ -25,5 +25,7 @@ struct CircularGaugeView: View {
                 .foregroundColor(.white)
         }
         .frame(width: size, height: size)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("\(percentage) percent usage")
     }
 }

@@ -9,6 +9,13 @@ enum APIError: Error, Equatable {
 }
 
 enum APIClient {
+    private static let session: URLSession = {
+        let config = URLSessionConfiguration.ephemeral
+        config.httpShouldSetCookies = false
+        config.httpCookieAcceptPolicy = .never
+        return URLSession(configuration: config)
+    }()
+
     private static let isoFormatter: ISO8601DateFormatter = {
         let f = ISO8601DateFormatter()
         f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
@@ -23,7 +30,7 @@ enum APIClient {
         request.timeoutInterval = 30
         ClaudeHeaderBuilder.applyHeaders(to: &request, sessionKey: sessionKey, orgId: orgId)
 
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let (data, response) = try await session.data(for: request)
 
         if let http = response as? HTTPURLResponse {
             switch http.statusCode {
@@ -58,7 +65,7 @@ enum APIClient {
         request.timeoutInterval = 15
         ClaudeHeaderBuilder.applyHeaders(to: &request, sessionKey: sessionKey, orgId: orgId)
 
-        guard let (data, response) = try? await URLSession.shared.data(for: request),
+        guard let (data, response) = try? await session.data(for: request),
               let http = response as? HTTPURLResponse,
               http.statusCode == 200 else {
             return (nil, nil)

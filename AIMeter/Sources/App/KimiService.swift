@@ -1,13 +1,11 @@
 import Foundation
-import Combine
 
 @MainActor
-final class KimiService: ObservableObject {
+final class KimiService: PollingServiceBase {
     @Published var kimiData: KimiUsageData = .empty
     @Published var isStale: Bool = false
     @Published var error: KimiError? = nil
 
-    private var timer: Timer?
     private var refreshInterval: TimeInterval = 60
 
     enum KimiError: Equatable {
@@ -15,37 +13,37 @@ final class KimiService: ObservableObject {
         case fetchFailed
     }
 
-    /// Resolve API key: env var first, Keychain fallback
+    /// Resolve API key: Keychain first, env var fallback
     static func resolveAPIKey() -> String? {
+        if let keychainKey = KimiKeychainHelper.readAPIKey() {
+            return keychainKey
+        }
         if let envKey = ProcessInfo.processInfo.environment["KIMI_API_KEY"], !envKey.isEmpty {
             return envKey
         }
-        return KimiKeychainHelper.readAPIKey()
+        return nil
     }
 
     /// True if key comes from env var (read-only in Settings)
     static var keyIsFromEnvironment: Bool {
+        if KimiKeychainHelper.readAPIKey() != nil { return false }
         if let envKey = ProcessInfo.processInfo.environment["KIMI_API_KEY"], !envKey.isEmpty {
             return true
         }
         return false
     }
 
-    func start(interval: TimeInterval = 60) {
+    override func start(interval: TimeInterval = 60) {
         self.refreshInterval = interval
         if let cached = SharedDefaults.loadKimi() {
             self.kimiData = cached
             self.isStale = Date().timeIntervalSince(cached.fetchedAt) > interval * 2
         }
-        Task { await fetch() }
-        timer = Timer.scheduledTimer(withTimeInterval: interval, repeats: true) { [weak self] _ in
-            Task { [weak self] in await self?.fetch() }
-        }
+        super.start(interval: interval)
     }
 
-    func stop() {
-        timer?.invalidate()
-        timer = nil
+    override func tick() async {
+        await fetch()
     }
 
     func fetch() async {
@@ -60,7 +58,15 @@ final class KimiService: ObservableObject {
         request.timeoutInterval = 10
 
         do {
-            let (data, _) = try await URLSession.shared.data(for: request)
+            let (data, response) = try await URLSession.shared.data(for: request)
+
+            // HTTP status check
+            guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
+                self.isStale = true
+                self.error = .fetchFailed
+                return
+            }
+
             let decoded = try JSONDecoder().decode(KimiBalanceResponse.self, from: data)
             guard decoded.code == 0 else {
                 self.isStale = true
@@ -94,11 +100,6 @@ final class KimiService: ObservableObject {
 private struct KimiBalanceResponse: Decodable {
     let code: Int
     let data: KimiBalanceData
-
-    enum CodingKeys: String, CodingKey {
-        case code
-        case data
-    }
 }
 
 private struct KimiBalanceData: Decodable {

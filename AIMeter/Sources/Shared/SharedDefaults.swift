@@ -54,4 +54,8 @@ enum SharedDefaults {
         else { return nil }
         return decoded
     }
+
+    static func configuredTimeZone(for offset: Int) -> TimeZone {
+        TimeZone(secondsFromGMT: offset * 3600) ?? .current
+    }
 }

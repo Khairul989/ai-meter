@@ -7,7 +7,7 @@ struct SmallWidgetView: View {
 
     private var configuredTimeZone: TimeZone {
         let offset = UserDefaults(suiteName: SharedDefaults.suiteName)?.integer(forKey: "timezoneOffset") ?? 0
-        return TimeZone(secondsFromGMT: offset * 3600) ?? .current
+        return SharedDefaults.configuredTimeZone(for: offset)
     }
 
     // Highest utilization across all providers (for status dot color)

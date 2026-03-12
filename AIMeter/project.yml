@@ -10,6 +10,8 @@ settings:
   base:
     SWIFT_VERSION: "5.9"
     MACOSX_DEPLOYMENT_TARGET: "14.0"
+    MARKETING_VERSION: "1.16.0"
+    CURRENT_PROJECT_VERSION: "18"
 
 packages:
   Sparkle:
@@ -35,8 +37,8 @@ targets:
       properties:
         LSUIElement: true
         CFBundleDisplayName: AIMeter
-        CFBundleShortVersionString: "1.15.0"
-        CFBundleVersion: "17"
+        CFBundleShortVersionString: "$(MARKETING_VERSION)"
+        CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
         SUFeedURL: "https://github.com/Khairul989/ai-meter/releases/latest/download/appcast.xml"
         SUPublicEDKey: "2gKYaPv+41CVza5bqUH/QI6KHLBWa6VjVSTWEtKPpIM="
         SUEnableAutomaticChecks: true
@@ -44,9 +46,10 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.khairul.aimeter
         CODE_SIGN_ENTITLEMENTS: Resources/AIMeter.entitlements
-        CODE_SIGN_IDENTITY: "Apple Development"
-        CODE_SIGN_STYLE: Automatic
-        DEVELOPMENT_TEAM: "X4BB76AA4X"
+        CODE_SIGN_IDENTITY: "-"
+        CODE_SIGN_STYLE: Manual
+        CODE_SIGNING_REQUIRED: "NO"
+        CODE_SIGNING_ALLOWED: "NO"
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
     entitlements:
       path: Resources/AIMeter.entitlements
@@ -69,17 +72,18 @@ targets:
       path: Resources/WidgetInfo.plist
       properties:
         CFBundleDisplayName: AI Meter Widget
-        CFBundleShortVersionString: "1.15.0"
-        CFBundleVersion: "17"
+        CFBundleShortVersionString: "$(MARKETING_VERSION)"
+        CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
         NSExtension:
           NSExtensionPointIdentifier: com.apple.widgetkit-extension
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.khairul.aimeter.widget
         CODE_SIGN_ENTITLEMENTS: Resources/AIMeterWidget.entitlements
-        CODE_SIGN_IDENTITY: "Apple Development"
-        CODE_SIGN_STYLE: Automatic
-        DEVELOPMENT_TEAM: "X4BB76AA4X"
+        CODE_SIGN_IDENTITY: "-"
+        CODE_SIGN_STYLE: Manual
+        CODE_SIGNING_REQUIRED: "NO"
+        CODE_SIGNING_ALLOWED: "NO"
     entitlements:
       path: Resources/AIMeterWidget.entitlements
       properties:
@@ -101,6 +105,7 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: com.khairul.aimeter.tests
         CODE_SIGN_IDENTITY: ""
         CODE_SIGNING_REQUIRED: "NO"
+        GENERATE_INFOPLIST_FILE: YES
     dependencies:
       - target: AIMeter
         embed: false

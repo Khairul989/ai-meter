@@ -1,13 +1,11 @@
 import Foundation
-import Combine
 
 @MainActor
-final class GLMService: ObservableObject {
+final class GLMService: PollingServiceBase {
     @Published var glmData: GLMUsageData = .empty
     @Published var isStale: Bool = false
     @Published var error: GLMError? = nil
 
-    private var timer: Timer?
     private var refreshInterval: TimeInterval = 60
 
     enum GLMError: Equatable {
@@ -15,37 +13,37 @@ final class GLMService: ObservableObject {
         case fetchFailed
     }
 
-    /// Resolve API key: env var first, Keychain fallback
+    /// Resolve API key: Keychain first, env var fallback
     static func resolveAPIKey() -> String? {
+        if let keychainKey = GLMKeychainHelper.readAPIKey() {
+            return keychainKey
+        }
         if let envKey = ProcessInfo.processInfo.environment["GLM_API_KEY"], !envKey.isEmpty {
             return envKey
         }
-        return GLMKeychainHelper.readAPIKey()
+        return nil
     }
 
     /// True if key comes from env var (read-only in Settings)
     static var keyIsFromEnvironment: Bool {
+        if GLMKeychainHelper.readAPIKey() != nil { return false }
         if let envKey = ProcessInfo.processInfo.environment["GLM_API_KEY"], !envKey.isEmpty {
             return true
         }
         return false
     }
 
-    func start(interval: TimeInterval = 60) {
+    override func start(interval: TimeInterval = 60) {
         self.refreshInterval = interval
         if let cached = SharedDefaults.loadGLM() {
             self.glmData = cached
             self.isStale = Date().timeIntervalSince(cached.fetchedAt) > interval * 2
         }
-        Task { await fetch() }
-        timer = Timer.scheduledTimer(withTimeInterval: interval, repeats: true) { [weak self] _ in
-            Task { [weak self] in await self?.fetch() }
-        }
+        super.start(interval: interval)
     }
 
-    func stop() {
-        timer?.invalidate()
-        timer = nil
+    override func tick() async {
+        await fetch()
     }
 
     func fetch() async {
@@ -60,7 +58,15 @@ final class GLMService: ObservableObject {
         request.timeoutInterval = 10
 
         do {
-            let (data, _) = try await URLSession.shared.data(for: request)
+            let (data, response) = try await URLSession.shared.data(for: request)
+
+            // HTTP status check
+            guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
+                self.isStale = true
+                self.error = .fetchFailed
+                return
+            }
+
             let decoded = try JSONDecoder().decode(GLMAPIResponse.self, from: data)
             guard decoded.success else {
                 self.isStale = true
