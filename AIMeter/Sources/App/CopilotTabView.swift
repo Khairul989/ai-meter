@@ -11,6 +11,13 @@ struct CopilotTabView: View {
         } else {
             let copilot = copilotService.copilotData
             VStack(alignment: .leading, spacing: 6) {
+                    if copilotService.error == .fetchFailed {
+                        ErrorBannerView(message: "Failed to fetch Copilot data") {
+                            Task { await copilotService.fetch() }
+                        }
+                    } else if case .rateLimited = copilotService.error {
+                        ErrorBannerView(message: "Rate limited — retrying automatically")
+                    }
                     if let resetText = ResetTimeFormatter.format(copilot.resetDate, style: .dayTime, timeZone: timeZone) {
                         Text("Reset \(resetText)")
                             .font(.system(size: 11))
@@ -25,7 +32,7 @@ struct CopilotTabView: View {
                             .padding(.horizontal, 5)
                             .padding(.vertical, 2)
                             .background(Color.orange.opacity(0.15))
-                            .clipShape(RoundedRectangle(cornerRadius: 4))
+                            .clipShape(RoundedRectangle(cornerRadius: AppRadius.badge))
                         Text("Trend data is experimental — accuracy may vary.")
                             .font(.system(size: 10))
                             .foregroundColor(.secondary)
@@ -39,15 +46,25 @@ struct CopilotTabView: View {
     }
 
     private var connectGitHubView: some View {
-        HStack(spacing: 8) {
-            Image(systemName: "arrow.triangle.2.circlepath")
-                .foregroundColor(.secondary)
-                .font(.system(size: 12))
-            Text("Connect GitHub CLI to see Copilot usage")
+        VStack(spacing: 12) {
+            Image("copilot")
+                .resizable()
+                .renderingMode(.template)
+                .scaledToFit()
+                .frame(width: 48, height: 48)
+                .foregroundColor(.secondary.opacity(0.5))
+            Text("Not connected")
+                .font(.headline)
+                .foregroundColor(.white)
+            Text("Monitor your Copilot usage in real time")
                 .font(.system(size: 11))
                 .foregroundColor(.secondary)
+            Text("Run `gh auth login` in Terminal first")
+                .font(.system(size: 10))
+                .foregroundColor(.secondary)
         }
-        .padding(.vertical, 8)
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 24)
     }
 
     @ViewBuilder
@@ -64,7 +81,7 @@ struct CopilotTabView: View {
                     .padding(.horizontal, 8)
                     .padding(.vertical, 2)
                     .background(Color.green.opacity(0.15))
-                    .clipShape(RoundedRectangle(cornerRadius: 4))
+                    .clipShape(RoundedRectangle(cornerRadius: AppRadius.badge))
             } else {
                 VStack(alignment: .trailing, spacing: 1) {
                     Text("\(quota.utilization)%")
@@ -79,7 +96,12 @@ struct CopilotTabView: View {
         .padding(.horizontal, 12)
         .padding(.vertical, 10)
         .background(Color.white.opacity(0.05))
-        .clipShape(RoundedRectangle(cornerRadius: 10))
+        .clipShape(RoundedRectangle(cornerRadius: AppRadius.card))
+        .overlay(alignment: .leading) {
+            RoundedRectangle(cornerRadius: 2)
+                .frame(width: 2)
+                .foregroundColor(ProviderTheme.copilot.accentColor)
+        }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("\(title) quota")
         .accessibilityValue(quota.unlimited ? "Unlimited" : "\(quota.utilization) percent, \(quota.remaining) of \(quota.entitlement) remaining")

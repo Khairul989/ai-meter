@@ -33,12 +33,12 @@ struct KimiTabView: View {
                     .padding(.horizontal, 12)
                     .padding(.vertical, 8)
                     .background(Color.white.opacity(0.05))
-                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                    .clipShape(RoundedRectangle(cornerRadius: AppRadius.card))
 
                     if kimiService.error == .fetchFailed {
-                        Text("Failed to fetch balance")
-                            .font(.system(size: 10))
-                            .foregroundColor(.orange)
+                        ErrorBannerView(message: "Failed to fetch balance") {
+                            Task { await kimiService.fetch() }
+                        }
                     }
                 }
         }
@@ -62,14 +62,19 @@ struct KimiTabView: View {
         .padding(.horizontal, 12)
         .padding(.vertical, 10)
         .background(Color.white.opacity(0.05))
-        .clipShape(RoundedRectangle(cornerRadius: 10))
+        .clipShape(RoundedRectangle(cornerRadius: AppRadius.card))
+        .overlay(alignment: .leading) {
+            RoundedRectangle(cornerRadius: 2)
+                .frame(width: 2)
+                .foregroundColor(ProviderTheme.kimi.accentColor)
+        }
     }
 
     private var noKeyView: some View {
         VStack(spacing: 12) {
             Image(systemName: "key.slash")
                 .font(.system(size: 28))
-                .foregroundColor(.secondary)
+                .foregroundColor(ProviderTheme.kimi.accentColor.opacity(0.6))
             Text("No Kimi API key found")
                 .font(.system(size: 13, weight: .semibold))
                 .foregroundColor(.white)
@@ -84,7 +89,7 @@ struct KimiTabView: View {
                     .padding(.horizontal, 8)
                     .padding(.vertical, 6)
                     .background(Color.white.opacity(0.07))
-                    .clipShape(RoundedRectangle(cornerRadius: 6))
+                    .clipShape(RoundedRectangle(cornerRadius: AppRadius.button))
                 if !keyInput.isEmpty {
                     Button(keySaved ? "Saved ✓" : "Save") {
                         KimiKeychainHelper.saveAPIKey(keyInput)

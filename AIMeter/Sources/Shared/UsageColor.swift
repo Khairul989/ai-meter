@@ -9,4 +9,13 @@ enum UsageColor {
         default: return .red
         }
     }
+
+    static func levelDescription(_ value: Int) -> String {
+        switch value {
+        case ..<50:  "Normal"
+        case ..<80:  "Elevated"
+        case ..<95:  "High"
+        default:     "Critical"
+        }
+    }
 }

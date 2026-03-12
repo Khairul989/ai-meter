@@ -4,6 +4,7 @@ import Charts
 struct QuotaChartView: View {
     @ObservedObject var historyService: QuotaHistoryService
     @State private var selectedRange: QuotaTimeRange = .day1
+    @State private var hoverDate: Date?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -36,7 +37,7 @@ struct QuotaChartView: View {
         .padding(.horizontal, 12)
         .padding(.vertical, 10)
         .background(Color.white.opacity(0.05))
-        .cornerRadius(10)
+        .cornerRadius(AppRadius.card)
     }
 
     @ViewBuilder
@@ -58,6 +59,27 @@ struct QuotaChartView: View {
                 )
                 .foregroundStyle(by: .value("Metric", "Weekly"))
                 .interpolationMethod(.monotone)
+            }
+
+            if let hoverDate {
+                RuleMark(x: .value("Hover", hoverDate))
+                    .foregroundStyle(Color.white.opacity(0.3))
+                    .lineStyle(StrokeStyle(lineWidth: 1))
+                    .annotation(position: .top, alignment: .center) {
+                        if let nearest = nearestPoint(to: hoverDate, in: points) {
+                            VStack(spacing: 2) {
+                                Text(String(format: "S: %.0f%%", nearest.session * 100))
+                                    .font(.system(size: 8))
+                                    .foregroundColor(.blue)
+                                Text(String(format: "W: %.0f%%", nearest.weekly * 100))
+                                    .font(.system(size: 8))
+                                    .foregroundColor(.orange)
+                            }
+                            .padding(4)
+                            .background(Color.black.opacity(0.8))
+                            .clipShape(RoundedRectangle(cornerRadius: AppRadius.badge))
+                        }
+                    }
             }
         }
         .chartXScale(domain: Date.now.addingTimeInterval(-selectedRange.interval)...Date.now)
@@ -89,6 +111,25 @@ struct QuotaChartView: View {
         .chartLegend(.visible)
         .chartLegend(position: .bottom, spacing: 4)
         .frame(height: 80)
+        .chartOverlay { proxy in
+            GeometryReader { _ in
+                Rectangle()
+                    .fill(Color.clear)
+                    .contentShape(Rectangle())
+                    .onContinuousHover { phase in
+                        switch phase {
+                        case .active(let location):
+                            hoverDate = proxy.value(atX: location.x, as: Date.self)
+                        case .ended:
+                            hoverDate = nil
+                        }
+                    }
+            }
+        }
+    }
+
+    private func nearestPoint(to date: Date, in points: [QuotaDataPoint]) -> QuotaDataPoint? {
+        points.min(by: { abs($0.timestamp.timeIntervalSince(date)) < abs($1.timestamp.timeIntervalSince(date)) })
     }
 
     private var xAxisFormat: Date.FormatStyle {

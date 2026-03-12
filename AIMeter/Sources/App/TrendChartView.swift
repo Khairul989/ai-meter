@@ -3,6 +3,7 @@ import Charts
 
 struct TrendChartView: View {
     @ObservedObject var statsService: ClaudeCodeStatsService
+    @State private var hoverDate: Date?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -27,13 +28,13 @@ struct TrendChartView: View {
                                         ? Color.white.opacity(0.15)
                                         : Color.clear
                                 )
-                                .cornerRadius(4)
+                                .cornerRadius(AppRadius.badge)
                         }
                         .buttonStyle(.plain)
                     }
                 }
                 .background(Color.white.opacity(0.05))
-                .cornerRadius(6)
+                .cornerRadius(AppRadius.button)
             }
 
             if statsService.isLoading && statsService.trendPoints.allSatisfy({ $0.messages == 0 }) {
@@ -54,7 +55,7 @@ struct TrendChartView: View {
         .padding(.horizontal, 12)
         .padding(.vertical, 10)
         .background(Color.white.opacity(0.05))
-        .cornerRadius(10)
+        .cornerRadius(AppRadius.card)
     }
 
     // MARK: - Chart
@@ -88,6 +89,27 @@ struct TrendChartView: View {
                 .lineStyle(StrokeStyle(lineWidth: 1.5))
                 .interpolationMethod(.catmullRom)
             }
+
+            if let hoverDate {
+                RuleMark(x: .value("Hover", hoverDate))
+                    .foregroundStyle(Color.white.opacity(0.3))
+                    .lineStyle(StrokeStyle(lineWidth: 1))
+                    .annotation(position: .top, alignment: .center) {
+                        if let nearest = nearestTrendPoint(to: hoverDate, in: points) {
+                            VStack(spacing: 2) {
+                                Text("\(nearest.messages) msgs")
+                                    .font(.system(size: 8))
+                                    .foregroundColor(.orange)
+                                Text("\(formatCompact(nearest.tokens)) tok")
+                                    .font(.system(size: 8))
+                                    .foregroundColor(.cyan)
+                            }
+                            .padding(4)
+                            .background(Color.black.opacity(0.8))
+                            .clipShape(RoundedRectangle(cornerRadius: AppRadius.badge))
+                        }
+                    }
+            }
         }
         .chartXAxis {
             AxisMarks(values: .stride(by: .day, count: xAxisStride)) { value in
@@ -114,6 +136,25 @@ struct TrendChartView: View {
         .chartYScale(domain: 0...(max(maxMessages, 1)))
         .chartLegend(.hidden)
         .frame(height: 80)
+        .chartOverlay { proxy in
+            GeometryReader { _ in
+                Rectangle()
+                    .fill(Color.clear)
+                    .contentShape(Rectangle())
+                    .onContinuousHover { phase in
+                        switch phase {
+                        case .active(let location):
+                            hoverDate = proxy.value(atX: location.x, as: Date.self)
+                        case .ended:
+                            hoverDate = nil
+                        }
+                    }
+            }
+        }
+    }
+
+    private func nearestTrendPoint(to date: Date, in points: [DailyTrendPoint]) -> DailyTrendPoint? {
+        points.min(by: { abs($0.date.timeIntervalSince(date)) < abs($1.date.timeIntervalSince(date)) })
     }
 
     private var xAxisStride: Int {
@@ -152,7 +193,7 @@ struct TrendChartView: View {
         .frame(maxWidth: .infinity)
         .padding(.vertical, 4)
         .background(Color.white.opacity(0.03))
-        .cornerRadius(4)
+        .cornerRadius(AppRadius.badge)
     }
 
     // MARK: - Formatting

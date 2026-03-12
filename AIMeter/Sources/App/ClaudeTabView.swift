@@ -27,18 +27,9 @@ struct ClaudeTabView: View {
                 .accessibilityElement(children: .combine)
 
                 if service.error != nil && service.error != .noCredentials {
-                    HStack(spacing: 6) {
-                        Image(systemName: "exclamationmark.triangle.fill")
-                            .foregroundColor(.orange)
-                            .font(.system(size: 11))
-                        Text("Failed to fetch usage data")
-                            .font(.system(size: 11))
-                            .foregroundColor(.orange)
-                        Spacer()
+                    ErrorBannerView(message: "Failed to fetch usage data") {
+                        Task { await service.fetch() }
                     }
-                    .padding(8)
-                    .background(Color.orange.opacity(0.1))
-                    .clipShape(RoundedRectangle(cornerRadius: 8))
                 }
 
                 ModelUsageView(statsService: statsService)
@@ -55,7 +46,9 @@ struct ClaudeTabView: View {
                             style: .countdown,
                             timeZone: timeZone,
                             now: context.date
-                        )
+                        ),
+                        accentColor: ProviderTheme.claude.accentColor,
+                        isPrimary: true
                     )
                 }
                 UsageCardView(
@@ -80,7 +73,8 @@ struct ClaudeTabView: View {
                         title: "Extra Credits",
                         subtitle: String(format: "$%.2f / $%.2f", credits.used / 100, credits.limit / 100),
                         percentage: credits.utilization,
-                        resetText: nil
+                        resetText: nil,
+                        isCompact: true
                     )
                 }
             }

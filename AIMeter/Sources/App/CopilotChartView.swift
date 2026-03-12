@@ -50,7 +50,7 @@ struct CopilotChartView: View {
         .padding(.horizontal, 12)
         .padding(.vertical, 10)
         .background(Color.white.opacity(0.05))
-        .cornerRadius(10)
+        .cornerRadius(AppRadius.card)
     }
 }
 
@@ -58,6 +58,7 @@ private struct CopilotInnerChart: View {
     let points: [CopilotHistoryDataPoint]
     let selectedRange: QuotaTimeRange
     let selectedMetric: CopilotChartMetric
+    @State private var hoverDate: Date?
 
     private var chatPoints: [ChartPoint] { makePoints("Chat") }
     private var completionsPoints: [ChartPoint] { makePoints("Completions") }
@@ -126,6 +127,31 @@ private struct CopilotInnerChart: View {
             seriesMarks(chat)
             seriesMarks(completions)
             seriesMarks(premium)
+
+            if let hoverDate {
+                RuleMark(x: .value("Hover", hoverDate))
+                    .foregroundStyle(Color.white.opacity(0.3))
+                    .lineStyle(StrokeStyle(lineWidth: 1))
+                    .annotation(position: .top, alignment: .center) {
+                        if let nearest = nearestCopilotPoint(to: hoverDate, in: points) {
+                            VStack(spacing: 2) {
+                                if let chat = nearest.chatUtilization {
+                                    Text("Chat: \(chat)%")
+                                        .font(.system(size: 8))
+                                        .foregroundColor(.blue)
+                                }
+                                if let premium = nearest.premiumUtilization {
+                                    Text("Premium: \(premium)%")
+                                        .font(.system(size: 8))
+                                        .foregroundColor(.purple)
+                                }
+                            }
+                            .padding(4)
+                            .background(Color.black.opacity(0.8))
+                            .clipShape(RoundedRectangle(cornerRadius: AppRadius.badge))
+                        }
+                    }
+            }
         }
         .chartXScale(domain: Date.now.addingTimeInterval(-selectedRange.interval)...Date.now)
         .chartXAxis(.hidden)
@@ -137,6 +163,25 @@ private struct CopilotInnerChart: View {
         .chartLegend(.visible)
         .chartLegend(position: .bottom, alignment: .leading, spacing: 4)
         .frame(height: 80)
+        .chartOverlay { proxy in
+            GeometryReader { _ in
+                Rectangle()
+                    .fill(Color.clear)
+                    .contentShape(Rectangle())
+                    .onContinuousHover { phase in
+                        switch phase {
+                        case .active(let location):
+                            hoverDate = proxy.value(atX: location.x, as: Date.self)
+                        case .ended:
+                            hoverDate = nil
+                        }
+                    }
+            }
+        }
+    }
+
+    private func nearestCopilotPoint(to date: Date, in points: [CopilotHistoryDataPoint]) -> CopilotHistoryDataPoint? {
+        points.min(by: { abs($0.timestamp.timeIntervalSince(date)) < abs($1.timestamp.timeIntervalSince(date)) })
     }
 
     private func makePoints(_ series: String) -> [ChartPoint] {

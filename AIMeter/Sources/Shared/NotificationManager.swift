@@ -55,10 +55,17 @@ final class NotificationManager {
     }
 
     func requestPermission() {
-        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { _, _ in }
+        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { _, _ in
+            let snooze1h = UNNotificationAction(identifier: "SNOOZE_1H", title: "Snooze 1h", options: [])
+            let snoozeReset = UNNotificationAction(identifier: "SNOOZE_RESET", title: "Snooze until reset", options: [])
+            let category = UNNotificationCategory(identifier: "USAGE_ALERT", actions: [snooze1h, snoozeReset], intentIdentifiers: [])
+            UNUserNotificationCenter.current().setNotificationCategories([category])
+        }
     }
 
     func check(metrics: [MetricSnapshot]) {
+        let snoozeUntil = defaults.double(forKey: "snoozeUntil")
+        guard Date().timeIntervalSince1970 > snoozeUntil else { return }
         guard defaults.bool(forKey: "notificationsEnabled") else { return }
         let warnThreshold = defaults.integer(forKey: "notifyWarning").nonZeroOrDefault(80)
         let critThreshold = defaults.integer(forKey: "notifyCritical").nonZeroOrDefault(90)
@@ -91,12 +98,25 @@ final class NotificationManager {
         let prefix = level == .critical ? "⚠️ " : ""
         content.title = "\(prefix)\(metric.label) at \(metric.utilization)%"
         if let detail = metric.detail { content.body = detail }
+        content.categoryIdentifier = "USAGE_ALERT"
         let request = UNNotificationRequest(
             identifier: "\(metric.key).\(level.rawValue)",
             content: content,
             trigger: nil
         )
         UNUserNotificationCenter.current().add(request)
+    }
+
+    func handleSnoozeAction(_ actionIdentifier: String) {
+        switch actionIdentifier {
+        case "SNOOZE_1H":
+            defaults.set(Date().addingTimeInterval(3600).timeIntervalSince1970, forKey: "snoozeUntil")
+        case "SNOOZE_RESET":
+            // Snooze for 5 hours (typical reset window)
+            defaults.set(Date().addingTimeInterval(18000).timeIntervalSince1970, forKey: "snoozeUntil")
+        default:
+            break
+        }
     }
 
     // MARK: - MetricSnapshot factories

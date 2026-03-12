@@ -11,12 +11,18 @@ struct GLMTabView: View {
             noKeyView
         } else {
             VStack(spacing: 8) {
+                    if glmService.error == .fetchFailed {
+                        ErrorBannerView(message: "Failed to fetch GLM data") {
+                            Task { await glmService.fetch() }
+                        }
+                    }
                     UsageCardView(
                         icon: "z.square",
                         title: "5hr Token Quota",
                         subtitle: "5h sliding window",
                         percentage: glmService.glmData.tokensPercent,
-                        resetText: nil
+                        resetText: nil,
+                        accentColor: ProviderTheme.glm.accentColor
                     )
                     if !glmService.glmData.tier.isEmpty {
                         HStack {
@@ -30,12 +36,12 @@ struct GLMTabView: View {
                                 .padding(.horizontal, 8)
                                 .padding(.vertical, 2)
                                 .background(Color.white.opacity(0.1))
-                                .clipShape(RoundedRectangle(cornerRadius: 4))
+                                .clipShape(RoundedRectangle(cornerRadius: AppRadius.badge))
                         }
                         .padding(.horizontal, 12)
                         .padding(.vertical, 8)
                         .background(Color.white.opacity(0.05))
-                        .clipShape(RoundedRectangle(cornerRadius: 8))
+                        .clipShape(RoundedRectangle(cornerRadius: AppRadius.card))
                     }
                 }
         }
@@ -45,7 +51,7 @@ struct GLMTabView: View {
         VStack(spacing: 12) {
             Image(systemName: "key.slash")
                 .font(.system(size: 28))
-                .foregroundColor(.secondary)
+                .foregroundColor(ProviderTheme.glm.accentColor.opacity(0.6))
             Text("No GLM API key found")
                 .font(.system(size: 13, weight: .semibold))
                 .foregroundColor(.white)
@@ -60,7 +66,7 @@ struct GLMTabView: View {
                     .padding(.horizontal, 8)
                     .padding(.vertical, 6)
                     .background(Color.white.opacity(0.07))
-                    .clipShape(RoundedRectangle(cornerRadius: 6))
+                    .clipShape(RoundedRectangle(cornerRadius: AppRadius.button))
                 if !keyInput.isEmpty {
                     Button(keySaved ? "Saved ✓" : "Save") {
                         GLMKeychainHelper.saveAPIKey(keyInput)

@@ -13,11 +13,17 @@ struct ProgressBarView: View {
                 // Background
                 RoundedRectangle(cornerRadius: height / 2)
                     .fill(color.opacity(0.2))
-                // Fill
-                RoundedRectangle(cornerRadius: height / 2)
-                    .fill(color)
-                    .frame(width: geo.size.width * progress)
-                    .animation(.easeInOut(duration: 0.3), value: percentage)
+                // Fill — gradient masked to fill width
+                LinearGradient(
+                    colors: [.green, .yellow, .orange, .red],
+                    startPoint: .leading,
+                    endPoint: .trailing
+                )
+                .mask(alignment: .leading) {
+                    RoundedRectangle(cornerRadius: height / 2)
+                        .frame(width: geo.size.width * progress)
+                }
+                .animation(.easeInOut(duration: 0.3), value: percentage)
             }
         }
         .frame(height: height)

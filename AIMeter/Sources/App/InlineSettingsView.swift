@@ -23,7 +23,7 @@ struct InlineSettingsView: View {
         VStack(alignment: .leading, spacing: 10) {
 
                 // MARK: - Accounts
-                settingsSection("Accounts") {
+                settingsSection("Accounts", icon: "person.2") {
                     VStack(alignment: .leading, spacing: 8) {
                         HStack(spacing: 6) {
                             Image(systemName: "person.crop.circle.fill")
@@ -172,7 +172,7 @@ struct InlineSettingsView: View {
                 }
 
                 // MARK: - Display
-                settingsSection("Display") {
+                settingsSection("Display", icon: "paintbrush") {
                     VStack(alignment: .leading, spacing: 8) {
                         settingsRow("Navigation") {
                             Menu {
@@ -246,7 +246,7 @@ struct InlineSettingsView: View {
                 }
 
                 // MARK: - Notifications
-                settingsSection("Notifications") {
+                settingsSection("Notifications", icon: "bell") {
                     VStack(alignment: .leading, spacing: 8) {
                         Toggle("Enable notifications", isOn: $notificationsEnabled)
                             .font(.system(size: 12))
@@ -294,12 +294,46 @@ struct InlineSettingsView: View {
                                 .menuStyle(.borderlessButton)
                                 .fixedSize()
                             }
+
+                            // Threshold visualization bar
+                            GeometryReader { geo in
+                                ZStack(alignment: .leading) {
+                                    // Green zone
+                                    Rectangle()
+                                        .fill(Color.green.opacity(0.3))
+                                        .frame(width: geo.size.width * CGFloat(notifyWarning) / 100)
+                                    // Yellow/Orange zone
+                                    Rectangle()
+                                        .fill(Color.orange.opacity(0.3))
+                                        .frame(width: geo.size.width * CGFloat(notifyCritical - notifyWarning) / 100)
+                                        .offset(x: geo.size.width * CGFloat(notifyWarning) / 100)
+                                    // Red zone
+                                    Rectangle()
+                                        .fill(Color.red.opacity(0.3))
+                                        .frame(width: geo.size.width * CGFloat(100 - notifyCritical) / 100)
+                                        .offset(x: geo.size.width * CGFloat(notifyCritical) / 100)
+                                    // Warning marker
+                                    Rectangle()
+                                        .fill(Color.yellow)
+                                        .frame(width: 1)
+                                        .offset(x: geo.size.width * CGFloat(notifyWarning) / 100)
+                                    // Critical marker
+                                    Rectangle()
+                                        .fill(Color.red)
+                                        .frame(width: 1)
+                                        .offset(x: geo.size.width * CGFloat(notifyCritical) / 100)
+                                }
+                                .clipShape(RoundedRectangle(cornerRadius: AppRadius.badge))
+                            }
+                            .frame(height: 8)
+                            .animation(.easeInOut(duration: 0.2), value: notifyWarning)
+                            .animation(.easeInOut(duration: 0.2), value: notifyCritical)
                         }
                     }
                 }
 
                 // MARK: - General
-                settingsSection("General") {
+                settingsSection("General", icon: "gear") {
                     VStack(alignment: .leading, spacing: 8) {
                         Toggle("Launch at login", isOn: $launchAtLogin)
                             .font(.system(size: 12))
@@ -329,6 +363,18 @@ struct InlineSettingsView: View {
                             .foregroundColor(.accentColor)
                         }
                         .buttonStyle(.plain)
+
+                        Divider().opacity(0.3)
+
+                        HStack {
+                            Text("Version")
+                                .font(.system(size: 12))
+                                .foregroundColor(.secondary)
+                            Spacer()
+                            Text("\(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "?") (\(Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "?"))")
+                                .font(.system(size: 12, design: .monospaced))
+                                .foregroundColor(.secondary)
+                        }
 
                         Divider().opacity(0.3)
 
@@ -363,17 +409,24 @@ struct InlineSettingsView: View {
 
     // MARK: - Helpers
 
-    private func settingsSection<Content: View>(_ title: String, @ViewBuilder content: () -> Content) -> some View {
+    private func settingsSection<Content: View>(_ title: String, icon: String? = nil, @ViewBuilder content: () -> Content) -> some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text(title.uppercased())
-                .font(.system(size: 10, weight: .semibold))
-                .foregroundColor(.secondary)
-                .tracking(0.5)
+            HStack(spacing: 4) {
+                if let icon {
+                    Image(systemName: icon)
+                        .font(.system(size: 9))
+                        .foregroundColor(.secondary)
+                }
+                Text(title.uppercased())
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundColor(.secondary)
+                    .tracking(0.5)
+            }
             content()
                 .padding(10)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .background(Color.white.opacity(0.05))
-                .clipShape(RoundedRectangle(cornerRadius: 8))
+                .clipShape(RoundedRectangle(cornerRadius: AppRadius.card))
         }
     }
 

@@ -34,13 +34,13 @@ struct ModelUsageView: View {
                                     ? Color.white.opacity(0.15)
                                     : Color.clear
                             )
-                            .cornerRadius(4)
+                            .cornerRadius(AppRadius.badge)
                     }
                     .buttonStyle(.plain)
                 }
             }
             .background(Color.white.opacity(0.05))
-            .cornerRadius(6)
+            .cornerRadius(AppRadius.button)
 
             if statsService.isLoading && statsService.models.isEmpty && statsService.selectedRange != .allTime {
                 HStack(spacing: 6) {
@@ -107,7 +107,7 @@ struct ModelUsageView: View {
         .padding(.horizontal, 12)
         .padding(.vertical, 10)
         .background(Color.white.opacity(0.05))
-        .cornerRadius(10)
+        .cornerRadius(AppRadius.card)
     }
 
     private func colorFor(_ model: ModelTokenUsage) -> Color {

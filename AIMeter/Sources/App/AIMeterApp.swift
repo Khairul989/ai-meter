@@ -1,4 +1,14 @@
 import SwiftUI
+import UserNotifications
+
+final class NotificationDelegate: NSObject, UNUserNotificationCenterDelegate {
+    static let shared = NotificationDelegate()
+
+    func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse, withCompletionHandler completionHandler: @escaping () -> Void) {
+        NotificationManager.shared.handleSnoozeAction(response.actionIdentifier)
+        completionHandler()
+    }
+}
 
 enum MenuBarProvider: String, CaseIterable {
     case claude = "claude"
@@ -58,6 +68,7 @@ struct AIMeterApp: App {
                 .environmentObject(authManager)
                 .environmentObject(statsService)
                 .task {
+                    UNUserNotificationCenter.current().delegate = NotificationDelegate.shared
                     service.start(interval: refreshInterval, authManager: authManager, historyService: historyService)
                     copilotService.start(interval: refreshInterval, historyService: copilotHistoryService)
                     glmService.start(interval: refreshInterval)
@@ -151,6 +162,7 @@ struct MenuBarLabel: View {
                 )
             Text(labelText)
                 .font(.system(size: 11, weight: .medium, design: .rounded))
+                .foregroundStyle(UsageColor.forUtilization(highestUtilization))
         }
     }
 }

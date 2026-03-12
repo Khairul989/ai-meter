@@ -98,6 +98,7 @@ struct MediumWidgetView: View {
                 }
             }
         }
+        .widgetURL(URL(string: "aimeter://tab/claude")!)
     }
 
     private var gaugeSize: CGFloat {
@@ -120,6 +121,7 @@ struct MediumWidgetView: View {
                     .foregroundColor(.secondary)
             }
         }
+        .accessibilityLabel("\(label) at \(limit.utilization) percent")
     }
 
     private var updatedText: String {

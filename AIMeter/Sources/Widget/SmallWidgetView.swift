@@ -63,5 +63,7 @@ struct SmallWidgetView: View {
                     .foregroundColor(.secondary)
             }
         }
+        .accessibilityLabel("\(label) usage at \(limit.utilization) percent")
+        .widgetURL(URL(string: "aimeter://tab/claude")!)
     }
 }
