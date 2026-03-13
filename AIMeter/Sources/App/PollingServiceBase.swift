@@ -12,6 +12,10 @@ class PollingServiceBase: ObservableObject {
         }
     }
 
+    deinit {
+        timer?.invalidate()
+    }
+
     func stop() {
         timer?.invalidate()
         timer = nil

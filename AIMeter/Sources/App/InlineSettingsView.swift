@@ -89,14 +89,14 @@ struct InlineSettingsView: View {
                                 .font(.system(size: 11))
                                 .foregroundColor(.secondary)
                                 .italic()
-                        } else if GLMKeychainHelper.readAPIKey() != nil && glmKeyInput.isEmpty {
+                        } else if APIKeyKeychainHelper.glm.readAPIKey() != nil && glmKeyInput.isEmpty {
                             HStack {
                                 Text("••••••••")
                                     .font(.system(size: 12))
                                     .foregroundColor(.secondary)
                                 Spacer()
                                 Button("Clear") {
-                                    GLMKeychainHelper.deleteAPIKey()
+                                    APIKeyKeychainHelper.glm.deleteAPIKey()
                                     glmKeySaved = false
                                 }
                                 .font(.system(size: 11))
@@ -110,7 +110,7 @@ struct InlineSettingsView: View {
                                     .textFieldStyle(.plain)
                                 if !glmKeyInput.isEmpty {
                                     Button(glmKeySaved ? "Saved ✓" : "Save") {
-                                        GLMKeychainHelper.saveAPIKey(glmKeyInput)
+                                        APIKeyKeychainHelper.glm.saveAPIKey(glmKeyInput)
                                         glmKeySaved = true
                                         glmKeyInput = ""
                                     }
@@ -137,14 +137,14 @@ struct InlineSettingsView: View {
                                 .font(.system(size: 11))
                                 .foregroundColor(.secondary)
                                 .italic()
-                        } else if KimiKeychainHelper.readAPIKey() != nil && kimiKeyInput.isEmpty {
+                        } else if APIKeyKeychainHelper.kimi.readAPIKey() != nil && kimiKeyInput.isEmpty {
                             HStack {
                                 Text("••••••••")
                                     .font(.system(size: 12))
                                     .foregroundColor(.secondary)
                                 Spacer()
                                 Button("Clear") {
-                                    KimiKeychainHelper.deleteAPIKey()
+                                    APIKeyKeychainHelper.kimi.deleteAPIKey()
                                     kimiKeySaved = false
                                 }
                                 .font(.system(size: 11))
@@ -158,7 +158,7 @@ struct InlineSettingsView: View {
                                     .textFieldStyle(.plain)
                                 if !kimiKeyInput.isEmpty {
                                     Button(kimiKeySaved ? "Saved ✓" : "Save") {
-                                        KimiKeychainHelper.saveAPIKey(kimiKeyInput)
+                                        APIKeyKeychainHelper.kimi.saveAPIKey(kimiKeyInput)
                                         kimiKeySaved = true
                                         kimiKeyInput = ""
                                     }

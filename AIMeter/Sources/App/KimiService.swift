@@ -11,11 +11,12 @@ final class KimiService: PollingServiceBase {
     enum KimiError: Equatable {
         case noKey
         case fetchFailed
+        case rateLimited(retryAfter: TimeInterval)
     }
 
     /// Resolve API key: Keychain first, env var fallback
     static func resolveAPIKey() -> String? {
-        if let keychainKey = KimiKeychainHelper.readAPIKey() {
+        if let keychainKey = APIKeyKeychainHelper.kimi.readAPIKey() {
             return keychainKey
         }
         if let envKey = ProcessInfo.processInfo.environment["KIMI_API_KEY"], !envKey.isEmpty {
@@ -26,7 +27,7 @@ final class KimiService: PollingServiceBase {
 
     /// True if key comes from env var (read-only in Settings)
     static var keyIsFromEnvironment: Bool {
-        if KimiKeychainHelper.readAPIKey() != nil { return false }
+        if APIKeyKeychainHelper.kimi.readAPIKey() != nil { return false }
         if let envKey = ProcessInfo.processInfo.environment["KIMI_API_KEY"], !envKey.isEmpty {
             return true
         }
@@ -61,10 +62,20 @@ final class KimiService: PollingServiceBase {
             let (data, response) = try await URLSession.shared.data(for: request)
 
             // HTTP status check
-            guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
-                self.isStale = true
-                self.error = .fetchFailed
-                return
+            if let http = response as? HTTPURLResponse {
+                if http.statusCode == 429 {
+                    let retryAfter = http.value(forHTTPHeaderField: "retry-after")
+                        .flatMap { TimeInterval($0) } ?? 60
+                    self.error = .rateLimited(retryAfter: retryAfter)
+                    self.isStale = true
+                    rescheduleTimer(interval: retryAfter + 5)
+                    return
+                }
+                guard (200...299).contains(http.statusCode) else {
+                    self.isStale = true
+                    self.error = .fetchFailed
+                    return
+                }
             }
 
             let decoded = try JSONDecoder().decode(KimiBalanceResponse.self, from: data)
@@ -85,6 +96,7 @@ final class KimiService: PollingServiceBase {
                 fetchedAt: Date()
             )
             self.isStale = false
+            if case .rateLimited = self.error { rescheduleTimer(interval: refreshInterval) }
             self.error = nil
             SharedDefaults.saveKimi(self.kimiData)
             NotificationManager.shared.check(metrics: NotificationManager.metrics(from: self.kimiData))

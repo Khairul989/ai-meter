@@ -6,6 +6,9 @@ struct APIKeyKeychainHelper {
     let serviceName: String
     private static let logger = Logger(subsystem: "com.khairul.aimeter", category: "APIKeyKeychain")
 
+    static let glm = APIKeyKeychainHelper(serviceName: "glm-api-key")
+    static let kimi = APIKeyKeychainHelper(serviceName: "kimi-api-key")
+
     /// Read API key from Keychain
     func readAPIKey() -> String? {
         let query: [String: Any] = [

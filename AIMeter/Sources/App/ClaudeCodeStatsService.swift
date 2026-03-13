@@ -256,7 +256,8 @@ final class ClaudeCodeStatsService: PollingServiceBase {
                 continue
             }
 
-            guard let fileData = try? Data(contentsOf: url) else { continue }
+            guard let fileData = try? Data(contentsOf: url),
+                  fileData.count < 100_000_000 else { continue } // Skip files > 100MB
 
             fileData.withUnsafeBytes { buffer in
                 guard let base = buffer.baseAddress?.assumingMemoryBound(to: UInt8.self) else { return }

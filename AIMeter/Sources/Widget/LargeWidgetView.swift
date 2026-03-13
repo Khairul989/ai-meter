@@ -21,6 +21,9 @@ struct LargeWidgetView: View {
                     .font(.system(size: 10, weight: .semibold))
                     .foregroundColor(.secondary)
                 Spacer()
+                Text(updatedText)
+                    .font(.system(size: 9))
+                    .foregroundColor(.secondary)
             }
 
             LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
@@ -77,5 +80,11 @@ struct LargeWidgetView: View {
             }
         }
         .accessibilityLabel("\(label) at \(percentage) percent")
+    }
+
+    private var updatedText: String {
+        let seconds = Int(Date().timeIntervalSince(data.fetchedAt))
+        if seconds < 60 { return "< 1 min ago" }
+        return "\(seconds / 60)m ago"
     }
 }

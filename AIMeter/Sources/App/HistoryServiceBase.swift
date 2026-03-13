@@ -1,6 +1,7 @@
 import Foundation
 import Combine
 import AppKit
+import os
 
 @MainActor
 class HistoryServiceBase<History: Codable, DataPoint>: ObservableObject {
@@ -9,6 +10,7 @@ class HistoryServiceBase<History: Codable, DataPoint>: ObservableObject {
     private var flushTimer: AnyCancellable?
     var isDirty = false
     private var terminationObserver: Any?
+    private let logger = Logger(subsystem: "com.khairul.aimeter", category: "HistoryService")
 
     static var retentionInterval: TimeInterval { 7 * 86400 }
     private static var flushInterval: TimeInterval { 300 }
@@ -70,6 +72,7 @@ class HistoryServiceBase<History: Codable, DataPoint>: ObservableObject {
             history = try JSONDecoder.appDecoder.decode(History.self, from: data)
             dataPoints = pruned(dataPoints)
         } catch {
+            logger.warning("History file corrupted (\(url.lastPathComponent)), moving to backup: \(error.localizedDescription)")
             let backup = url.deletingPathExtension().appendingPathExtension("bak.json")
             try? FileManager.default.removeItem(at: backup)
             try? FileManager.default.moveItem(at: url, to: backup)

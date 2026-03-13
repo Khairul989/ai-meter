@@ -26,7 +26,7 @@ enum CopilotAPIClient {
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
         request.setValue("2022-11-28", forHTTPHeaderField: "X-GitHub-Api-Version")
-        request.timeoutInterval = 5
+        request.timeoutInterval = 15
 
         let (data, response) = try await session.data(for: request)
 

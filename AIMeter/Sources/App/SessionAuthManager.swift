@@ -60,14 +60,23 @@ final class SessionAuthManager: ObservableObject {
                   let str = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines),
                   !str.isEmpty else { continue }
             ClaudeSessionKeychain.save(account: account, value: str)
-            migrated = true
+            // Verify keychain write succeeded before marking as migrated
+            if ClaudeSessionKeychain.read(account: account) == str {
+                migrated = true
+                try? FileManager.default.removeItem(at: fileURL)
+            }
         }
 
         // Migrate capabilities
         let capsFile = configDir.appendingPathComponent("capabilities")
         if let capsData = try? Data(contentsOf: capsFile),
            let _ = try? JSONDecoder().decode([String].self, from: capsData) {
-            ClaudeSessionKeychain.save(account: .capabilities, value: String(data: capsData, encoding: .utf8) ?? "")
+            let capsString = String(data: capsData, encoding: .utf8) ?? ""
+            ClaudeSessionKeychain.save(account: .capabilities, value: capsString)
+            // Only delete if verified in keychain
+            if ClaudeSessionKeychain.read(account: .capabilities) == capsString {
+                try? FileManager.default.removeItem(at: capsFile)
+            }
         }
 
         if migrated {
@@ -81,12 +90,6 @@ final class SessionAuthManager: ObservableObject {
                let caps = try? JSONDecoder().decode([String].self, from: capsData) {
                 capabilities = caps
             }
-
-            // Delete legacy files after successful migration
-            for (fileURL, _) in files {
-                try? FileManager.default.removeItem(at: fileURL)
-            }
-            try? FileManager.default.removeItem(at: capsFile)
         }
     }
 

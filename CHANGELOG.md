@@ -5,6 +5,41 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.18.0] - 2026-03-14
+
+### Fixed
+
+- Keychain migration data loss — legacy files now deleted only after verified keychain write-back
+- GLM/Kimi services now handle HTTP 429 rate limiting with `Retry-After` backoff (previously retried at normal interval)
+- Notification threshold validation — `warning` clamped below `critical` to prevent logic inversion
+
+### Changed
+
+- Consolidated `GLMKeychainHelper` and `KimiKeychainHelper` into static instances on `APIKeyKeychainHelper`
+- Extracted shared `APIKeyInputView` component from duplicate GLM/Kimi tab key-entry UI
+- Copilot API timeout standardized from 5s to 15s (consistent with other providers)
+- `NotificationManager` tracker cached in memory to reduce UserDefaults I/O
+- `HistoryServiceBase` now logs warnings when history files are corrupted and moved to backup
+- JSONL parser skips files larger than 100MB to prevent memory pressure
+- `PollingServiceBase` adds `deinit` timer cleanup for safety
+
+### Added
+
+- Rate-limited error banners on GLM and Kimi tabs
+- Data staleness indicator on small and large widgets (medium already had it)
+
+## [1.17.0] - 2026-03-13
+
+### Added
+
+- `ErrorBannerView` — reusable error banner component with optional retry action
+- Error banners on GLM, Copilot, and Kimi tabs with retry functionality
+- App version display in Settings (version + build number)
+- Keyboard shortcuts: Escape to close settings, Cmd+5 to toggle settings
+- Threshold animation on notification visualization bar
+- Comprehensive VoiceOver accessibility labels across all tabs, pills, buttons, chart widgets
+- Shared utilities: `AppTypeScale`, `ProviderTheme`, `UsageColor` with `levelDescription` helper
+
 ## [1.16.1] - 2026-03-12
 
 ### Added

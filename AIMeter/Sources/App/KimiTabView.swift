@@ -3,12 +3,17 @@ import SwiftUI
 struct KimiTabView: View {
     @ObservedObject var kimiService: KimiService
     var onKeySaved: (() -> Void)? = nil
-    @State private var keyInput: String = ""
-    @State private var keySaved: Bool = false
 
     var body: some View {
         if kimiService.error == .noKey {
-            noKeyView
+            APIKeyInputView(
+                providerName: "Kimi",
+                placeholder: "KIMI_API_KEY…",
+                accentColor: ProviderTheme.kimi.accentColor
+            ) { key in
+                APIKeyKeychainHelper.kimi.saveAPIKey(key)
+                onKeySaved?()
+            }
         } else {
             VStack(spacing: 8) {
                     balanceRow(
@@ -35,10 +40,13 @@ struct KimiTabView: View {
                     .background(Color.white.opacity(0.05))
                     .clipShape(RoundedRectangle(cornerRadius: AppRadius.card))
 
-                    if kimiService.error == .fetchFailed {
+                    if case .fetchFailed = kimiService.error {
                         ErrorBannerView(message: "Failed to fetch balance") {
                             Task { await kimiService.fetch() }
                         }
+                    }
+                    if case .rateLimited = kimiService.error {
+                        ErrorBannerView(message: "Rate limited — backing off")
                     }
                 }
         }
@@ -70,40 +78,5 @@ struct KimiTabView: View {
         }
     }
 
-    private var noKeyView: some View {
-        VStack(spacing: 12) {
-            Image(systemName: "key.slash")
-                .font(.system(size: 28))
-                .foregroundColor(ProviderTheme.kimi.accentColor.opacity(0.6))
-            Text("No Kimi API key found")
-                .font(.system(size: 13, weight: .semibold))
-                .foregroundColor(.white)
-            Text("Paste your API key below or add it in Settings")
-                .font(.caption)
-                .foregroundColor(.secondary)
-                .multilineTextAlignment(.center)
-            HStack(spacing: 6) {
-                SecureField("KIMI_API_KEY…", text: $keyInput)
-                    .font(.system(size: 12))
-                    .textFieldStyle(.plain)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 6)
-                    .background(Color.white.opacity(0.07))
-                    .clipShape(RoundedRectangle(cornerRadius: AppRadius.button))
-                if !keyInput.isEmpty {
-                    Button(keySaved ? "Saved ✓" : "Save") {
-                        KimiKeychainHelper.saveAPIKey(keyInput)
-                        keySaved = true
-                        keyInput = ""
-                        onKeySaved?()
-                    }
-                    .font(.system(size: 11, weight: .medium))
-                    .buttonStyle(.plain)
-                    .foregroundColor(keySaved ? .green : .accentColor)
-                }
-            }
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 20)
-    }
+
 }

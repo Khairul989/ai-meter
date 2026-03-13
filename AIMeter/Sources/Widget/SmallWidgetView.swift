@@ -49,6 +49,9 @@ struct SmallWidgetView: View {
                     .font(.system(size: 9, weight: .semibold))
                     .foregroundColor(.secondary)
                 Spacer()
+                Text(updatedText)
+                    .font(.system(size: 8))
+                    .foregroundColor(.secondary)
             }
 
             CircularGaugeView(percentage: limit.utilization, lineWidth: 6, size: 64)
@@ -65,5 +68,11 @@ struct SmallWidgetView: View {
         }
         .accessibilityLabel("\(label) usage at \(limit.utilization) percent")
         .widgetURL(URL(string: "aimeter://tab/claude")!)
+    }
+
+    private var updatedText: String {
+        let seconds = Int(Date().timeIntervalSince(data.fetchedAt))
+        if seconds < 60 { return "< 1m" }
+        return "\(seconds / 60)m"
     }
 }

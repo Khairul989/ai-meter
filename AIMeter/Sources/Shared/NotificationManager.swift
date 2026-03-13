@@ -38,16 +38,20 @@ final class NotificationManager {
     static let shared = NotificationManager()
 
     private let defaults = UserDefaults.standard
+    private var trackerCache: NotificationTracker?
 
     // Internal so tests can read it directly
     var tracker: NotificationTracker {
         get {
+            if let cached = trackerCache { return cached }
             guard let data = defaults.data(forKey: "notificationTracker"),
                   let decoded = try? JSONDecoder().decode(NotificationTracker.self, from: data)
             else { return NotificationTracker() }
+            trackerCache = decoded
             return decoded
         }
         set {
+            trackerCache = newValue
             if let data = try? JSONEncoder().encode(newValue) {
                 defaults.set(data, forKey: "notificationTracker")
             }
@@ -88,8 +92,10 @@ final class NotificationManager {
 
     // Internal so tests can call directly
     func level(for utilization: Int, warning: Int, critical: Int) -> NotificationLevel {
+        // Ensure warning < critical to prevent logic inversion
+        let safeWarning = min(warning, critical - 1)
         if utilization >= critical { return .critical }
-        if utilization >= warning { return .warning }
+        if utilization >= safeWarning { return .warning }
         return .none
     }
 
