@@ -11,6 +11,22 @@ struct CopilotTabView: View {
         } else {
             let copilot = copilotService.copilotData
             VStack(alignment: .leading, spacing: 6) {
+                    HStack {
+                        Text("Copilot")
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundColor(.white)
+                        if !copilot.plan.isEmpty {
+                            Text(copilot.plan)
+                                .font(.system(size: 10, weight: .semibold))
+                                .foregroundColor(.orange)
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 2)
+                                .background(Color.orange.opacity(0.15))
+                                .clipShape(RoundedRectangle(cornerRadius: 4))
+                        }
+                        Spacer()
+                    }
+                    .accessibilityElement(children: .combine)
                     if copilotService.error == .fetchFailed {
                         ErrorBannerView(message: "Failed to fetch Copilot data") {
                             Task { await copilotService.fetch() }
