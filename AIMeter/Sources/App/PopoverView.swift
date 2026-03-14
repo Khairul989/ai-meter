@@ -245,7 +245,7 @@ struct PopoverView: View {
                 SummaryStripView(
                     selectedTab: $selectedTab,
                     claudeUtilization: authManager.isAuthenticated ? service.usageData.fiveHour.utilization : nil,
-                    copilotUtilization: copilotService.error != .noToken ? copilotService.copilotData.premiumInteractions.utilization : nil,
+                    copilotUtilization: copilotService.error != .noToken ? copilotService.copilotData.highestUtilization : nil,
                     glmUtilization: glmService.error != .noKey ? glmService.glmData.tokensPercent : nil,
                     kimiBalance: kimiService.error != .noKey ? kimiService.kimiData.totalBalance : nil
                 )
