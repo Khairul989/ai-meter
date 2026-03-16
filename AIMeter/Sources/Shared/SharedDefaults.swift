@@ -55,6 +55,18 @@ enum SharedDefaults {
         return decoded
     }
 
+    static func saveCodex(_ data: CodexUsageData) {
+        guard let encoded = try? JSONEncoder.appEncoder.encode(data) else { return }
+        suite?.set(encoded, forKey: "codexData")
+    }
+
+    static func loadCodex() -> CodexUsageData? {
+        guard let data = suite?.data(forKey: "codexData"),
+              let decoded = try? JSONDecoder.appDecoder.decode(CodexUsageData.self, from: data)
+        else { return nil }
+        return decoded
+    }
+
     static func configuredTimeZone(for offset: Int) -> TimeZone {
         TimeZone(secondsFromGMT: offset * 3600) ?? .current
     }

@@ -1,7 +1,7 @@
 import SwiftUI
 
 enum ProviderTheme: String, CaseIterable {
-    case claude, copilot, glm, kimi
+    case claude, copilot, glm, kimi, codex
 
     var accentColor: Color {
         switch self {
@@ -9,6 +9,7 @@ enum ProviderTheme: String, CaseIterable {
         case .copilot: Color(red: 0.35, green: 0.55, blue: 0.85)
         case .glm:     Color(red: 0.25, green: 0.75, blue: 0.65)
         case .kimi:    Color(red: 0.65, green: 0.45, blue: 0.85)
+        case .codex:   Color(red: 0.10, green: 0.75, blue: 0.55)
         }
     }
 
@@ -18,6 +19,7 @@ enum ProviderTheme: String, CaseIterable {
         case .copilot: "Copilot"
         case .glm:     "GLM"
         case .kimi:    "Kimi"
+        case .codex:   "Codex"
         }
     }
 }

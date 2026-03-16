@@ -4,6 +4,7 @@ import ServiceManagement
 struct InlineSettingsView: View {
     @ObservedObject var updaterManager: UpdaterManager
     @ObservedObject var authManager: SessionAuthManager
+    @ObservedObject var codexAuthManager: CodexAuthManager
     @Binding var selectedTab: Tab
     @EnvironmentObject var historyService: QuotaHistoryService
     @EnvironmentObject var copilotHistoryService: CopilotHistoryService
@@ -28,8 +29,11 @@ struct InlineSettingsView: View {
     @AppStorage("refreshCopilot") private var refreshCopilot: Double = 60
     @AppStorage("refreshGLM") private var refreshGLM: Double = 120
     @AppStorage("refreshKimi") private var refreshKimi: Double = 300
+    @AppStorage("refreshCodex") private var refreshCodex: Double = 300
+    @State private var showCodexSignOutConfirmation = false
 
     var body: some View {
+        ScrollView(.vertical, showsIndicators: true) {
         VStack(alignment: .leading, spacing: 10) {
 
                 // MARK: - Accounts
@@ -178,6 +182,56 @@ struct InlineSettingsView: View {
                                 }
                             }
                         }
+
+                        Divider().opacity(0.3)
+
+                        HStack(spacing: 6) {
+                            Image(systemName: "person.crop.circle.fill")
+                                .font(.system(size: 11))
+                                .foregroundColor(.secondary)
+                            Text("Codex")
+                                .font(.system(size: 11, weight: .medium))
+                                .foregroundColor(.secondary)
+                        }
+
+                        if codexAuthManager.isAuthenticated {
+                            HStack {
+                                Image(systemName: "checkmark.circle.fill")
+                                    .foregroundColor(.green)
+                                    .font(.system(size: 12))
+                                VStack(alignment: .leading, spacing: 1) {
+                                    Text("Signed in")
+                                        .font(.system(size: 12))
+                                        .foregroundColor(.white)
+                                    if let email = codexAuthManager.email {
+                                        Text(email)
+                                            .font(.system(size: 10))
+                                            .foregroundColor(.secondary)
+                                    }
+                                }
+                                Spacer()
+                                Button("Sign Out") {
+                                    showCodexSignOutConfirmation = true
+                                }
+                                .font(.system(size: 11))
+                                .buttonStyle(.plain)
+                                .foregroundColor(.red)
+                            }
+                        } else {
+                            Button("Sign in with ChatGPT") {
+                                codexAuthManager.openLoginWindow()
+                            }
+                            .font(.system(size: 12))
+                            .buttonStyle(.plain)
+                            .foregroundColor(.accentColor)
+                            .disabled(codexAuthManager.isLoggingIn)
+                        }
+
+                        if let error = codexAuthManager.lastError {
+                            Text(error)
+                                .font(.system(size: 10))
+                                .foregroundColor(.red)
+                        }
                     }
                 }
 
@@ -261,6 +315,7 @@ struct InlineSettingsView: View {
                             providerRefreshRow("Copilot", value: $refreshCopilot)
                             providerRefreshRow("GLM", value: $refreshGLM)
                             providerRefreshRow("Kimi", value: $refreshKimi)
+                            providerRefreshRow("Codex", value: $refreshCodex)
                         }
 
                         Divider().opacity(0.3)
@@ -404,8 +459,8 @@ struct InlineSettingsView: View {
                 settingsSection("Shortcuts", icon: "keyboard") {
                     VStack(alignment: .leading, spacing: 4) {
                         shortcutRow("⌘R", "Refresh all providers")
-                        shortcutRow("⌘1–4", "Jump to provider tab")
-                        shortcutRow("⌘5", "Open Settings")
+                        shortcutRow("⌘1–5", "Jump to provider tab")
+                        shortcutRow("⌘6", "Open Settings")
                         shortcutRow("← →", "Navigate between tabs")
                         shortcutRow("Esc", "Return from Settings")
                         shortcutRow("⌘Q", "Quit AIMeter")
@@ -495,6 +550,7 @@ struct InlineSettingsView: View {
                             refreshCopilot = 60
                             refreshGLM = 120
                             refreshKimi = 300
+                            refreshCodex = 300
                         } label: {
                             HStack {
                                 Image(systemName: "arrow.counterclockwise")
@@ -524,6 +580,8 @@ struct InlineSettingsView: View {
                     }
             }
         }
+        }
+        .frame(maxHeight: 500)
         .onAppear {
             launchAtLogin = SMAppService.mainApp.status == .enabled
         }
@@ -534,6 +592,14 @@ struct InlineSettingsView: View {
             Button("Cancel", role: .cancel) {}
         } message: {
             Text("You'll need to sign in again to view usage data.")
+        }
+        .confirmationDialog("Sign out of Codex?", isPresented: $showCodexSignOutConfirmation) {
+            Button("Sign Out", role: .destructive) {
+                codexAuthManager.signOut()
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("You'll need to sign in again to view Codex usage data.")
         }
     }
 

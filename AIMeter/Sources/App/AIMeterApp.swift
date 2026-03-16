@@ -15,6 +15,7 @@ enum MenuBarProvider: String, CaseIterable {
     case copilot = "copilot"
     case glm = "glm"
     case kimi = "kimi"
+    case codex = "codex"
 
     var displayName: String {
         switch self {
@@ -22,6 +23,7 @@ enum MenuBarProvider: String, CaseIterable {
         case .copilot: "Copilot"
         case .glm: "GLM"
         case .kimi: "Kimi"
+        case .codex: "Codex"
         }
     }
 }
@@ -33,6 +35,8 @@ struct AIMeterApp: App {
     @StateObject private var copilotHistoryService = CopilotHistoryService()
     @StateObject private var glmService = GLMService()
     @StateObject private var kimiService = KimiService()
+    @StateObject private var codexService = CodexService()
+    @StateObject private var codexAuthManager = CodexAuthManager()
     @StateObject private var updaterManager = UpdaterManager()
     @StateObject private var authManager = SessionAuthManager()
     @StateObject private var historyService = QuotaHistoryService()
@@ -44,6 +48,7 @@ struct AIMeterApp: App {
     @AppStorage("refreshCopilot") private var refreshCopilot: Double = 60
     @AppStorage("refreshGLM") private var refreshGLM: Double = 120
     @AppStorage("refreshKimi") private var refreshKimi: Double = 300
+    @AppStorage("refreshCodex") private var refreshCodex: Double = 300
     @State private var isRefreshing = false
     @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding = false
 
@@ -54,6 +59,7 @@ struct AIMeterApp: App {
         case .copilot: return refreshCopilot
         case .glm: return refreshGLM
         case .kimi: return refreshKimi
+        case .codex: return refreshCodex
         }
     }
 
@@ -67,6 +73,7 @@ struct AIMeterApp: App {
                     group.addTask { await copilotService.fetch() }
                     group.addTask { await glmService.fetch() }
                     group.addTask { await kimiService.fetch() }
+                    group.addTask { await codexService.fetch() }
                 }
                 statsService.load()
                 try? await Task.sleep(for: .milliseconds(600))
@@ -82,6 +89,8 @@ struct AIMeterApp: App {
             glmService.start(interval: interval(for: .glm))
             kimiService.stop()
             kimiService.start(interval: interval(for: .kimi))
+            codexService.stop()
+            codexService.start(interval: interval(for: .codex), authManager: codexAuthManager)
             statsService.stop()
             statsService.start(interval: interval(for: .claude))
         }
@@ -95,6 +104,8 @@ struct AIMeterApp: App {
                     .environmentObject(copilotHistoryService)
                     .environmentObject(glmService)
                     .environmentObject(kimiService)
+                    .environmentObject(codexService)
+                    .environmentObject(codexAuthManager)
                     .environmentObject(updaterManager)
                     .environmentObject(authManager)
                     .environmentObject(statsService)
@@ -105,6 +116,7 @@ struct AIMeterApp: App {
                         copilotService.start(interval: interval(for: .copilot), historyService: copilotHistoryService)
                         glmService.start(interval: interval(for: .glm))
                         kimiService.start(interval: interval(for: .kimi))
+                        codexService.start(interval: interval(for: .codex), authManager: codexAuthManager)
                         statsService.start(interval: interval(for: .claude))
                     }
                     .onChange(of: refreshInterval) { _, _ in restartAll() }
@@ -113,9 +125,15 @@ struct AIMeterApp: App {
                     .onChange(of: refreshCopilot) { _, _ in restartAll() }
                     .onChange(of: refreshGLM) { _, _ in restartAll() }
                     .onChange(of: refreshKimi) { _, _ in restartAll() }
+                    .onChange(of: refreshCodex) { _, _ in restartAll() }
                     .onChange(of: authManager.isAuthenticated) { _, isAuth in
                         if isAuth {
                             Task { await service.fetch() }
+                        }
+                    }
+                    .onChange(of: codexAuthManager.isAuthenticated) { _, isAuth in
+                        if isAuth {
+                            Task { await codexService.fetch() }
                         }
                     }
             }
@@ -126,6 +144,7 @@ struct AIMeterApp: App {
                 copilotData: copilotService.copilotData,
                 glmData: glmService.glmData,
                 kimiData: kimiService.kimiData,
+                codexData: codexService.codexData,
                 isRefreshing: isRefreshing
             )
         }
@@ -139,6 +158,7 @@ struct MenuBarLabel: View {
     let copilotData: CopilotUsageData
     let glmData: GLMUsageData
     let kimiData: KimiUsageData
+    let codexData: CodexUsageData
     let isRefreshing: Bool
 
     private var labelText: String {
@@ -159,6 +179,8 @@ struct MenuBarLabel: View {
             return "GLM \(glmData.tokensPercent)%"
         case .kimi:
             return String(format: "Kimi ¥%.2f", kimiData.totalBalance)
+        case .codex:
+            return "Codex \(codexData.primaryPercent)%"
         }
     }
 
@@ -173,6 +195,8 @@ struct MenuBarLabel: View {
         case .kimi:
             // Balance-based: green when positive, red when zero
             kimiData.totalBalance > 0 ? 10 : 100
+        case .codex:
+            codexData.highestUtilization
         }
     }
 

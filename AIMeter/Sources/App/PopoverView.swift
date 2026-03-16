@@ -3,7 +3,7 @@ import SwiftUI
 // MARK: - Tab
 
 enum Tab {
-    case claude, copilot, glm, kimi, settings
+    case claude, copilot, glm, kimi, codex, settings
 
     var displayName: String {
         switch self {
@@ -11,6 +11,7 @@ enum Tab {
         case .copilot:  return "Copilot"
         case .glm:      return "GLM"
         case .kimi:     return "Kimi"
+        case .codex:    return "Codex"
         case .settings: return "Settings"
         }
     }
@@ -21,7 +22,8 @@ enum Tab {
         case .copilot:  return 1
         case .glm:      return 2
         case .kimi:     return 3
-        case .settings: return 4
+        case .codex:    return 4
+        case .settings: return 5
         }
     }
 }
@@ -42,8 +44,9 @@ struct TabBarView: View {
         HStack(spacing: 4) {
             tabButton(.claude,   icon: .asset("claude"),    label: "Claude")
             tabButton(.copilot,  icon: .asset("copilot"),   label: "Copilot")
-            tabButton(.glm,      icon: .system("z.square"), label: "GLM")
-            tabButton(.kimi,     icon: .system("k.square"), label: "Kimi")
+            tabButton(.glm,      icon: .asset("glm"),       label: "GLM")
+            tabButton(.kimi,     icon: .asset("kimi"),      label: "Kimi")
+            tabButton(.codex,    icon: .asset("codex"),     label: "Codex")
             Spacer()
             tabButton(.settings, icon: .system("gear"),     label: nil)
         }
@@ -65,13 +68,13 @@ struct TabBarView: View {
                         .scaledToFit()
                         .frame(width: 13, height: 13)
                 }
-                if let label = label {
+                if let label = label, selectedTab == tab {
                     Text(label)
                         .font(.system(size: 11, weight: .medium))
                 }
             }
             .foregroundColor(selectedTab == tab ? .white : .secondary)
-            .padding(.horizontal, 8)
+            .padding(.horizontal, selectedTab == tab ? 8 : 6)
             .padding(.vertical, 5)
             .background(selectedTab == tab ? Color.white.opacity(0.1) : Color.clear)
             .clipShape(RoundedRectangle(cornerRadius: AppRadius.button))
@@ -90,6 +93,7 @@ struct SummaryStripView: View {
     let copilotUtilization: Int?
     let glmUtilization: Int?
     let kimiBalance: Double?
+    let codexUtilization: Int?
 
     var body: some View {
         HStack(spacing: 4) {
@@ -104,6 +108,9 @@ struct SummaryStripView: View {
             }
             if let balance = kimiBalance {
                 pill(tab: .kimi, theme: .kimi, text: String(format: "¥%.2f", balance), utilization: balance > 0 ? 10 : 100)
+            }
+            if let util = codexUtilization {
+                pill(tab: .codex, theme: .codex, text: "\(util)%", utilization: util)
             }
         }
     }
@@ -141,6 +148,8 @@ struct PopoverView: View {
     @EnvironmentObject var copilotHistoryService: CopilotHistoryService
     @EnvironmentObject var glmService: GLMService
     @EnvironmentObject var kimiService: KimiService
+    @EnvironmentObject var codexService: CodexService
+    @EnvironmentObject var codexAuthManager: CodexAuthManager
     @EnvironmentObject var updaterManager: UpdaterManager
     @EnvironmentObject var authManager: SessionAuthManager
     @EnvironmentObject var statsService: ClaudeCodeStatsService
@@ -182,8 +191,9 @@ struct PopoverView: View {
                         Menu {
                             Button { switchTab(to: .claude) }   label: { Label { Text("Claude") } icon: { Image("claude-small").renderingMode(.template) } }
                             Button { switchTab(to: .copilot) }  label: { Label { Text("Copilot") } icon: { Image("copilot-small").renderingMode(.template) } }
-                            Button { switchTab(to: .glm) }      label: { Label("GLM",     systemImage: "z.square") }
-                            Button { switchTab(to: .kimi) }     label: { Label("Kimi",    systemImage: "k.square") }
+                            Button { switchTab(to: .glm) }      label: { Label { Text("GLM") } icon: { Image("glm-small").renderingMode(.template) } }
+                            Button { switchTab(to: .kimi) }     label: { Label { Text("Kimi") } icon: { Image("kimi-small").renderingMode(.template) } }
+                            Button { switchTab(to: .codex) }    label: { Label { Text("Codex") } icon: { Image("codex-small").renderingMode(.template) } }
                         } label: {
                             HStack(spacing: 4) {
                                 Text(selectedTab.displayName)
@@ -249,7 +259,8 @@ struct PopoverView: View {
                     claudeUtilization: authManager.isAuthenticated ? service.usageData.fiveHour.utilization : nil,
                     copilotUtilization: copilotService.error != .noToken ? copilotService.copilotData.premiumInteractions.utilization : nil,
                     glmUtilization: glmService.error != .noKey ? glmService.glmData.tokensPercent : nil,
-                    kimiBalance: kimiService.error != .noKey ? kimiService.kimiData.totalBalance : nil
+                    kimiBalance: kimiService.error != .noKey ? kimiService.kimiData.totalBalance : nil,
+                    codexUtilization: codexAuthManager.isAuthenticated ? codexService.codexData.primaryPercent : nil
                 )
                 .padding(.bottom, 6)
             }
@@ -273,8 +284,10 @@ struct PopoverView: View {
                     KimiTabView(kimiService: kimiService, onKeySaved: {
                         Task { await kimiService.fetch() }
                     })
+                case .codex:
+                    CodexTabView(codexService: codexService, codexAuthManager: codexAuthManager, timeZone: configuredTimeZone)
                 case .settings:
-                    InlineSettingsView(updaterManager: updaterManager, authManager: authManager, selectedTab: $selectedTab)
+                    InlineSettingsView(updaterManager: updaterManager, authManager: authManager, codexAuthManager: codexAuthManager, selectedTab: $selectedTab)
                 }
             }
             .id(selectedTab)
@@ -372,14 +385,14 @@ struct PopoverView: View {
 
                 // Arrow keys — navigate between provider tabs (no modifier needed)
                 if event.keyCode == 123 { // left arrow
-                    let tabs: [Tab] = [.claude, .copilot, .glm, .kimi]
+                    let tabs: [Tab] = [.claude, .copilot, .glm, .kimi, .codex]
                     if let idx = tabs.firstIndex(of: selectedTab), idx > 0 {
                         switchTab(to: tabs[idx - 1])
                     }
                     return nil
                 }
                 if event.keyCode == 124 { // right arrow
-                    let tabs: [Tab] = [.claude, .copilot, .glm, .kimi]
+                    let tabs: [Tab] = [.claude, .copilot, .glm, .kimi, .codex]
                     if let idx = tabs.firstIndex(of: selectedTab), idx < tabs.count - 1 {
                         switchTab(to: tabs[idx + 1])
                     }
@@ -404,6 +417,9 @@ struct PopoverView: View {
                     switchTab(to: .kimi)
                     return nil
                 case "5":
+                    switchTab(to: .codex)
+                    return nil
+                case "6":
                     previousTab = selectedTab
                     switchTab(to: .settings)
                     return nil
@@ -427,6 +443,7 @@ struct PopoverView: View {
             case "copilot": selectedTab = .copilot
             case "glm": selectedTab = .glm
             case "kimi": selectedTab = .kimi
+            case "codex": selectedTab = .codex
             default: break
             }
         }
@@ -445,6 +462,7 @@ struct PopoverView: View {
         case .copilot: return copilotService.isStale
         case .glm: return glmService.isStale
         case .kimi: return kimiService.isStale
+        case .codex: return codexService.isStale
         case .settings: return false
         }
     }
@@ -456,6 +474,7 @@ struct PopoverView: View {
         case .copilot: fetchedAt = copilotService.copilotData.fetchedAt
         case .glm: fetchedAt = glmService.glmData.fetchedAt
         case .kimi: fetchedAt = kimiService.kimiData.fetchedAt
+        case .codex: fetchedAt = codexService.codexData.fetchedAt
         case .settings: return ""
         }
         if fetchedAt == .distantPast { return "" }

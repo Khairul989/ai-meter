@@ -5,6 +5,25 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.20.0] - 2026-03-16
+
+### Added
+
+- Codex usage tracker — new provider for OpenAI Codex with web login (ChatGPT session auth), 5h/7d rate limit windows, and code review quota display
+- Web login flow for Codex — WKWebView-based ChatGPT sign-in with cookie monitoring and access token extraction via `/api/auth/session`
+- CodexService, CodexAPIClient, CodexAuthManager, CodexSessionKeychain — full provider stack following existing CopilotService pattern
+- CodexTabView with sign-in prompt, usage cards, token-expired banner, and plan badge
+- 8 new tests for Codex API response parsing (CodexAPIClientTests)
+- Official provider icons — OpenAI logo for Codex, GLM Z logo, Kimi chat bubble logo as custom assets
+- Icon-only unselected tabs — tab bar shows label only for active tab, preventing overflow with 5+ providers
+
+### Changed
+
+- Tab bar now uses custom asset icons for all providers (Claude, Copilot, GLM, Kimi, Codex) instead of system SF Symbols
+- Dropdown navigation menu uses small icon variants for all providers
+- Settings page wrapped in ScrollView (max 500px) to prevent content clipping on smaller displays
+- Keyboard shortcuts updated: ⌘5 = Codex tab, ⌘6 = Settings
+
 ## [1.19.0] - 2026-03-15
 
 ### Added
