@@ -23,7 +23,7 @@ struct CopilotTabView: View {
                     if let status = providerStatus, status.indicator != "none" {
                         ProviderStatusBannerView(status: status)
                     }
-                    if let resetText = ResetTimeFormatter.format(copilot.resetDate, style: .dayTime, timeZone: timeZone) {
+                    if let resetText = ResetTimeFormatter.format(copilot.resetDate, style: .dateTime, timeZone: timeZone) {
                         Text("Reset \(resetText)")
                             .font(.system(size: 11))
                             .foregroundColor(.secondary)

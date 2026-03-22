@@ -17,11 +17,17 @@ enum ResetTimeFormatter {
             formatter.timeZone = timeZone
             formatter.dateFormat = "EEE h:mma"
             return formatter.string(from: date).lowercased()
+        case .dateTime:
+            let formatter = DateFormatter()
+            formatter.timeZone = timeZone
+            formatter.dateFormat = "MMM d, h:mma"
+            return formatter.string(from: date).lowercased()
         }
     }
 
     enum Style {
         case countdown  // "3h 1m"
         case dayTime    // "thu 11:00am"
+        case dateTime   // "mar 1, 8:00am"
     }
 }
