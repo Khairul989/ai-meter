@@ -31,13 +31,32 @@ private struct SessionPaceView: View {
         return text
     }
 
+    @State private var showHelp = false
+
     var body: some View {
-        Text(label)
-            .font(.system(size: 11))
-            .foregroundColor(paceColor)
-            .padding(.horizontal, 4)
-            .accessibilityLabel(label)
-            .help(paceHelpText)
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 4) {
+                Text(label)
+                    .font(.system(size: 11))
+                    .foregroundColor(paceColor)
+                    .padding(.horizontal, 4)
+                    .accessibilityLabel(label)
+                Button {
+                    showHelp.toggle()
+                } label: {
+                    Image(systemName: "info.circle")
+                        .font(.system(size: 10))
+                        .foregroundColor(.secondary)
+                }
+                .buttonStyle(.plain)
+            }
+            if showHelp {
+                Text(paceHelpText)
+                    .font(.system(size: 10))
+                    .foregroundColor(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
     }
 }
 
