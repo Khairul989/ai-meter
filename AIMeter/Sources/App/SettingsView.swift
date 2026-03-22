@@ -121,6 +121,8 @@ struct AccountsSettingsSection: View {
     @ObservedObject var authManager: SessionAuthManager
     @ObservedObject var codexAuthManager: CodexAuthManager
 
+    @AppStorage("hidePersonalInfo") private var hidePersonalInfo: Bool = false
+
     @State private var showSignOutConfirmation = false
     @State private var glmKeyInput: String = ""
     @State private var glmKeySaved: Bool = false
@@ -131,6 +133,11 @@ struct AccountsSettingsSection: View {
     var body: some View {
         settingsSectionCard {
             VStack(alignment: .leading, spacing: 8) {
+                Toggle("Hide personal information", isOn: $hidePersonalInfo)
+                    .font(.system(size: 12))
+
+                Divider().opacity(0.3)
+
                 HStack(spacing: 6) {
                     Image(systemName: "person.crop.circle.fill")
                         .font(.system(size: 11))
@@ -149,7 +156,7 @@ struct AccountsSettingsSection: View {
                             Text("Signed in")
                                 .font(.system(size: 12))
                                 .foregroundColor(.white)
-                            if let name = authManager.organizationName {
+                            if let name = PersonalInfoRedactor.conditionalRedact(authManager.organizationName, hideInfo: hidePersonalInfo) {
                                 Text(name)
                                     .font(.system(size: 10))
                                     .foregroundColor(.secondary)
@@ -295,7 +302,7 @@ struct AccountsSettingsSection: View {
                             Text("Signed in")
                                 .font(.system(size: 12))
                                 .foregroundColor(.white)
-                            if let email = codexAuthManager.email {
+                            if let email = PersonalInfoRedactor.conditionalRedact(codexAuthManager.email, hideInfo: hidePersonalInfo) {
                                 Text(email)
                                     .font(.system(size: 10))
                                     .foregroundColor(.secondary)
@@ -631,6 +638,7 @@ struct GeneralSettingsSection: View {
     @ObservedObject var historyService: QuotaHistoryService
     @ObservedObject var copilotHistoryService: CopilotHistoryService
 
+    @AppStorage("hidePersonalInfo") private var hidePersonalInfo: Bool = false
     @AppStorage("refreshInterval") private var refreshInterval: Double = 60
     @AppStorage("timezoneOffset") private var timezoneOffset: Int = TimeZone.current.secondsFromGMT() / 3600
     @AppStorage("menuBarProvider") private var menuBarProvider: String = MenuBarProvider.claude.rawValue
@@ -734,6 +742,7 @@ struct GeneralSettingsSection: View {
                     refreshGLM = 120
                     refreshKimi = 300
                     refreshCodex = 300
+                    hidePersonalInfo = false
                 } label: {
                     HStack {
                         Image(systemName: "arrow.counterclockwise")
