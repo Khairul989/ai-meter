@@ -16,12 +16,14 @@ final class NotificationDelegate: NSObject, UNUserNotificationCenterDelegate {
 }
 
 enum MenuBarDisplayMode: String, CaseIterable {
+    case classic = "classic"
     case percent = "percent"
     case pace = "pace"
     case both = "both"
 
     var displayName: String {
         switch self {
+        case .classic: "Classic"
         case .percent: "Percent"
         case .pace: "Pace"
         case .both: "Both"
@@ -67,7 +69,7 @@ struct AIMeterApp: App {
     @AppStorage("checkProviderStatus") private var checkProviderStatus: Bool = true
     @AppStorage("refreshInterval") private var refreshInterval: Double = 60
     @AppStorage("menuBarProvider") private var menuBarProvider: String = MenuBarProvider.claude.rawValue
-    @AppStorage("menuBarDisplayMode") private var menuBarDisplayMode: String = MenuBarDisplayMode.percent.rawValue
+    @AppStorage("menuBarDisplayMode") private var menuBarDisplayMode: String = MenuBarDisplayMode.classic.rawValue
     @AppStorage("perProviderRefresh") private var perProviderRefresh: Bool = false
     @AppStorage("refreshClaude") private var refreshClaude: Double = 60
     @AppStorage("refreshCopilot") private var refreshCopilot: Double = 60
@@ -243,11 +245,26 @@ struct MenuBarLabel: View {
         return paceString(from: result.deltaPercent)
     }
 
+    private func resetTimeString(_ date: Date?) -> String? {
+        guard let date else { return nil }
+        let fmt = DateFormatter()
+        fmt.dateFormat = "h:mma"
+        fmt.amSymbol = "am"
+        fmt.pmSymbol = "pm"
+        return fmt.string(from: date)
+    }
+
     private var labelText: String {
         switch provider {
         case .claude:
             let pct = "\(usageData.fiveHour.utilization)%"
             switch displayMode {
+            case .classic:
+                let base = "5h \(pct)"
+                if let reset = resetTimeString(usageData.fiveHour.resetsAt) {
+                    return "\(base) · \(reset)"
+                }
+                return base
             case .percent:
                 return pct
             case .pace:

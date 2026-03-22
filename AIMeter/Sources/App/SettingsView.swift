@@ -358,7 +358,7 @@ struct DisplaySettingsSection: View {
     @AppStorage("refreshInterval") private var refreshInterval: Double = 60
     @AppStorage("timezoneOffset") private var timezoneOffset: Int = TimeZone.current.secondsFromGMT() / 3600
     @AppStorage("menuBarProvider") private var menuBarProvider: String = MenuBarProvider.claude.rawValue
-    @AppStorage("menuBarDisplayMode") private var menuBarDisplayMode: String = MenuBarDisplayMode.percent.rawValue
+    @AppStorage("menuBarDisplayMode") private var menuBarDisplayMode: String = MenuBarDisplayMode.classic.rawValue
     @AppStorage("navigationStyle") private var navigationStyle: String = "tabbar"
     @AppStorage("colorThresholdElevated") private var colorElevated: Int = 50
     @AppStorage("colorThresholdHigh") private var colorHigh: Int = 80
@@ -723,7 +723,7 @@ struct GeneralSettingsSection: View {
     @AppStorage("refreshInterval") private var refreshInterval: Double = 60
     @AppStorage("timezoneOffset") private var timezoneOffset: Int = TimeZone.current.secondsFromGMT() / 3600
     @AppStorage("menuBarProvider") private var menuBarProvider: String = MenuBarProvider.claude.rawValue
-    @AppStorage("menuBarDisplayMode") private var menuBarDisplayMode: String = MenuBarDisplayMode.percent.rawValue
+    @AppStorage("menuBarDisplayMode") private var menuBarDisplayMode: String = MenuBarDisplayMode.classic.rawValue
     @AppStorage("notificationsEnabled") private var notificationsEnabled: Bool = false
     @AppStorage("notifyWarning") private var notifyWarning: Int = 80
     @AppStorage("notifyCritical") private var notifyCritical: Int = 90
@@ -820,7 +820,7 @@ struct GeneralSettingsSection: View {
                     timezoneOffset = TimeZone.current.secondsFromGMT() / 3600
                     navigationStyle = "tabbar"
                     menuBarProvider = MenuBarProvider.claude.rawValue
-                    menuBarDisplayMode = MenuBarDisplayMode.percent.rawValue
+                    menuBarDisplayMode = MenuBarDisplayMode.classic.rawValue
                     notificationsEnabled = false
                     notifyWarning = 80
                     notifyCritical = 90
