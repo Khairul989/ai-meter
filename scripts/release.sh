@@ -28,6 +28,16 @@ done
 command -v gh >/dev/null 2>&1 || { echo "ERROR: gh CLI required. Install: brew install gh"; exit 1; }
 command -v xcodebuild >/dev/null 2>&1 || { echo "ERROR: xcodebuild required."; exit 1; }
 
+echo "==> Bumping version in project.yml..."
+SEMVER="${VERSION#v}"
+PROJ_YML="$AIMETER_DIR/project.yml"
+CURRENT_BUILD=$(grep 'CURRENT_PROJECT_VERSION:' "$PROJ_YML" | sed 's/.*"\([0-9]*\)".*/\1/')
+NEW_BUILD=$((CURRENT_BUILD + 1))
+sed -i '' "s/MARKETING_VERSION: \"[^\"]*\"/MARKETING_VERSION: \"$SEMVER\"/" "$PROJ_YML"
+sed -i '' "s/CURRENT_PROJECT_VERSION: \"[^\"]*\"/CURRENT_PROJECT_VERSION: \"$NEW_BUILD\"/" "$PROJ_YML"
+echo "    MARKETING_VERSION: $SEMVER"
+echo "    CURRENT_PROJECT_VERSION: $NEW_BUILD (was $CURRENT_BUILD)"
+
 echo "==> Cleaning build directory..."
 rm -rf "$BUILD_DIR"
 mkdir -p "$BUILD_DIR"
