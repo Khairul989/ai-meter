@@ -70,6 +70,7 @@ final class UsageService: PollingServiceBase {
             SharedDefaults.save(data)
             WidgetCenter.shared.reloadAllTimelines()
             NotificationManager.shared.check(metrics: NotificationManager.metrics(from: data))
+            NotificationManager.shared.checkSessionDepletion(provider: "Claude", usagePercent: Double(data.fiveHour.utilization))
             historyService?.recordDataPoint(
                 session: Double(data.fiveHour.utilization) / 100.0,
                 weekly: Double(data.sevenDay.utilization) / 100.0

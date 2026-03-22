@@ -57,6 +57,9 @@ final class CopilotService: PollingServiceBase {
             copilotHistoryService?.recordSnapshot(data)
             WidgetCenter.shared.reloadAllTimelines()
             NotificationManager.shared.check(metrics: NotificationManager.metrics(from: data))
+            if !data.premiumInteractions.unlimited {
+                NotificationManager.shared.checkSessionDepletion(provider: "Copilot", usagePercent: Double(data.premiumInteractions.utilization))
+            }
         } catch let apiError as CopilotAPIError {
             self.isStale = true
             if case .rateLimited(let retryAfter) = apiError {

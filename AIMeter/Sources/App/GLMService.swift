@@ -58,6 +58,7 @@ final class GLMService: HTTPPollingService {
         )
         SharedDefaults.saveGLM(self.glmData)
         NotificationManager.shared.check(metrics: NotificationManager.metrics(from: self.glmData))
+        NotificationManager.shared.checkSessionDepletion(provider: "GLM", usagePercent: Double(self.glmData.tokensPercent))
     }
 }
 

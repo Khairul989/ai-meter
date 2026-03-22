@@ -38,6 +38,9 @@ struct NotificationTracker: Codable {
 final class NotificationManager {
     static let shared = NotificationManager()
 
+    @MainActor
+    private static let quotaTracker = SessionQuotaTracker()
+
     private let defaults = UserDefaults.standard
     private var trackerCache: NotificationTracker?
 
@@ -163,6 +166,26 @@ final class NotificationManager {
             NotificationCenter.default.post(name: .openLatestRecap, object: nil)
         } else {
             handleSnoozeAction(actionIdentifier)
+        }
+    }
+
+    // MARK: - Session depletion tracking
+
+    @MainActor
+    func checkSessionDepletion(provider: String, usagePercent: Double) {
+        guard UserDefaults.standard.bool(forKey: "notificationsEnabled") else { return }
+        guard let transition = NotificationManager.quotaTracker.update(provider: provider, usagePercent: usagePercent) else { return }
+        switch transition {
+        case .depleted:
+            fireViaOsascript(
+                title: "\(provider) Session Depleted",
+                body: "Usage at 100% — will notify when available again."
+            )
+        case .restored:
+            fireViaOsascript(
+                title: "\(provider) Session Restored",
+                body: "Session quota is available again."
+            )
         }
     }
 

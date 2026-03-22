@@ -50,6 +50,7 @@ final class CodexService: PollingServiceBase {
             self.error = nil
             self.retryDate = nil
             SharedDefaults.saveCodex(data)
+            NotificationManager.shared.checkSessionDepletion(provider: "Codex", usagePercent: Double(data.primaryPercent))
         } catch let apiError as CodexAPIError {
             self.isStale = true
             if case .rateLimited(let retryAfter) = apiError {
