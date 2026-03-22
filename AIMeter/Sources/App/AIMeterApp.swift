@@ -49,10 +49,6 @@ enum MenuBarProvider: String, CaseIterable {
 
 @main
 struct AIMeterApp: App {
-    init() {
-        GlobalHotKeyManager.shared.start()
-    }
-
     @StateObject private var service = UsageService()
     @StateObject private var copilotService = CopilotService()
     @StateObject private var copilotHistoryService = CopilotHistoryService()
@@ -161,6 +157,8 @@ struct AIMeterApp: App {
                         let recapSvc = recapService!
                         recapSvc.checkAndGenerateRecap(notificationManager: NotificationManager.shared)
 
+                        GlobalHotKeyManager.shared.start()
+
                         for await _ in NotificationCenter.default.notifications(named: .openLatestRecap) {
                             let recaps = recapSvc.loadSavedRecaps()
                             if let latest = recaps.last {
@@ -221,7 +219,6 @@ struct MenuBarLabel: View {
     let isRefreshing: Bool
 
     @AppStorage("loadingPattern") private var loadingPatternRaw: String = LoadingPattern.fade.rawValue
-    @State private var animationPhase: Double = 0
     // Cycle duration in seconds — fast enough to feel smooth, slow enough to be subtle
     private let cycleDuration: Double = 2.0
 
@@ -292,40 +289,29 @@ struct MenuBarLabel: View {
         UsageColor.forUtilization(highestUtilization)
     }
 
-    private var menuBarImage: NSImage? {
-        let content = MenuBarLabelContent(
-            labelText: labelText,
-            color: usageColor,
-            opacity: isRefreshing ? loadingPattern.opacity(at: animationPhase) : 1.0
-        )
-        return MenuBarImageRenderer.render(content)
-    }
-
     var body: some View {
-        if let img = menuBarImage {
-            Image(nsImage: img)
-                // Drive the animation: tick every ~50ms when refreshing, stop when done
-                .onAppear {
-                    if isRefreshing { startAnimation() }
-                }
-                .onChange(of: isRefreshing) { _, refreshing in
-                    if refreshing { startAnimation() } else { animationPhase = 0 }
-                }
+        if isRefreshing {
+            TimelineView(.animation(minimumInterval: 0.1, paused: false)) { context in
+                menuBarImage(at: context.date)
+            }
         } else {
-            Image(systemName: "sparkles")
+            menuBarImage(at: nil)
         }
     }
 
-    private func startAnimation() {
-        let start = Date()
-        // Use a repeating timer to update phase; cancelled automatically when isRefreshing goes false
-        Timer.scheduledTimer(withTimeInterval: 0.05, repeats: true) { timer in
-            guard isRefreshing else {
-                timer.invalidate()
-                return
-            }
-            let elapsed = Date().timeIntervalSince(start)
-            animationPhase = (elapsed / cycleDuration).truncatingRemainder(dividingBy: 1.0)
+    private func opacity(at date: Date?) -> Double {
+        guard let date else { return 1.0 }
+        let phase = date.timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: cycleDuration) / cycleDuration
+        return loadingPattern.opacity(at: phase)
+    }
+
+    @ViewBuilder
+    private func menuBarImage(at date: Date?) -> some View {
+        let content = MenuBarLabelContent(labelText: labelText, color: usageColor, opacity: opacity(at: date))
+        if let img = MenuBarImageRenderer.render(content) {
+            Image(nsImage: img)
+        } else {
+            Image(systemName: "sparkles")
         }
     }
 }
