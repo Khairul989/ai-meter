@@ -4,6 +4,7 @@ struct CopilotTabView: View {
     @ObservedObject var copilotService: CopilotService
     @ObservedObject var historyService: CopilotHistoryService
     let timeZone: TimeZone
+    var providerStatus: ProviderStatusService.StatusInfo?
 
     var body: some View {
         if copilotService.error == .noToken {
@@ -17,6 +18,10 @@ struct CopilotTabView: View {
                         }
                     } else if case .rateLimited = copilotService.error {
                         ErrorBannerView(message: "Rate limited — retrying", retryDate: copilotService.retryDate)
+                    }
+
+                    if let status = providerStatus, status.indicator != "none" {
+                        ProviderStatusBannerView(status: status)
                     }
                     if let resetText = ResetTimeFormatter.format(copilot.resetDate, style: .dayTime, timeZone: timeZone) {
                         Text("Reset \(resetText)")

@@ -6,6 +6,7 @@ struct CodexTabView: View {
     @ObservedObject var codexService: CodexService
     @ObservedObject var codexAuthManager: CodexAuthManager
     let timeZone: TimeZone
+    var providerStatus: ProviderStatusService.StatusInfo?
 
     var body: some View {
         if !codexAuthManager.isAuthenticated {
@@ -21,6 +22,10 @@ struct CodexTabView: View {
                     ErrorBannerView(message: "Rate limited — retrying", retryDate: codexService.retryDate)
                 } else if codexService.error == .tokenExpired {
                     tokenExpiredBanner
+                }
+
+                if let status = providerStatus, status.indicator != "none" {
+                    ProviderStatusBannerView(status: status)
                 }
 
                 UsageCardView(

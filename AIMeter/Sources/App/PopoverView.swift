@@ -203,6 +203,7 @@ struct PopoverView: View {
     @EnvironmentObject var authManager: SessionAuthManager
     @EnvironmentObject var statsService: ClaudeCodeStatsService
     @EnvironmentObject var historyService: QuotaHistoryService
+    @EnvironmentObject var providerStatusService: ProviderStatusService
     @ObservedObject private var networkMonitor = NetworkMonitor.shared
     var onRefresh: () -> Void
     @AppStorage("timezoneOffset") private var timezoneOffset: Int = TimeZone.current.secondsFromGMT() / 3600
@@ -317,10 +318,10 @@ struct PopoverView: View {
                     if !authManager.isAuthenticated {
                         signInPromptView
                     } else {
-                        ClaudeTabView(service: service, statsService: statsService, timeZone: configuredTimeZone, planName: resolvedPlanName)
+                        ClaudeTabView(service: service, statsService: statsService, timeZone: configuredTimeZone, planName: resolvedPlanName, providerStatus: providerStatusService.statuses["Claude"])
                     }
                 case .copilot:
-                    CopilotTabView(copilotService: copilotService, historyService: copilotHistoryService, timeZone: configuredTimeZone)
+                    CopilotTabView(copilotService: copilotService, historyService: copilotHistoryService, timeZone: configuredTimeZone, providerStatus: providerStatusService.statuses["Copilot"])
                 case .glm:
                     GLMTabView(glmService: glmService, onKeySaved: {
                         Task { await glmService.fetch() }
@@ -330,7 +331,7 @@ struct PopoverView: View {
                         Task { await kimiService.fetch() }
                     })
                 case .codex:
-                    CodexTabView(codexService: codexService, codexAuthManager: codexAuthManager, timeZone: configuredTimeZone)
+                    CodexTabView(codexService: codexService, codexAuthManager: codexAuthManager, timeZone: configuredTimeZone, providerStatus: providerStatusService.statuses["Codex"])
                 case .settings:
                     EmptyView()
                 }

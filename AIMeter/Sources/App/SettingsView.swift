@@ -723,12 +723,18 @@ struct GeneralSettingsSection: View {
     @AppStorage("refreshKimi") private var refreshKimi: Double = 300
     @AppStorage("refreshCodex") private var refreshCodex: Double = 300
     @AppStorage("providerTabOrder") private var providerTabOrder: String = Tab.defaultOrderString
+    @AppStorage("checkProviderStatus") private var checkProviderStatus: Bool = true
 
     @State private var launchAtLogin = false
 
     var body: some View {
         settingsSectionCard {
             VStack(alignment: .leading, spacing: 8) {
+                Toggle("Check provider status", isOn: $checkProviderStatus)
+                    .font(.system(size: 12))
+
+                Divider().opacity(0.3)
+
                 Toggle("Launch at login", isOn: $launchAtLogin)
                     .font(.system(size: 12))
                     .onChange(of: launchAtLogin) { _, newValue in

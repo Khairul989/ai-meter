@@ -43,6 +43,7 @@ struct ClaudeTabView: View {
     @ObservedObject var statsService: ClaudeCodeStatsService
     let timeZone: TimeZone
     var planName: String?
+    var providerStatus: ProviderStatusService.StatusInfo?
 
     var body: some View {
         let data = service.usageData
@@ -80,6 +81,10 @@ struct ClaudeTabView: View {
                     ErrorBannerView(message: "Failed to fetch usage data") {
                         Task { await service.fetch() }
                     }
+                }
+
+                if let status = providerStatus, status.indicator != "none" {
+                    ProviderStatusBannerView(status: status)
                 }
 
                 TimelineView(.periodic(from: .now, by: 1)) { context in

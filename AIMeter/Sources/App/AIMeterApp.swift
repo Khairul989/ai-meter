@@ -64,6 +64,8 @@ struct AIMeterApp: App {
     @StateObject private var authManager = SessionAuthManager()
     @StateObject private var historyService = QuotaHistoryService()
     @StateObject private var statsService = ClaudeCodeStatsService()
+    @StateObject private var providerStatusService = ProviderStatusService()
+    @AppStorage("checkProviderStatus") private var checkProviderStatus: Bool = true
     @AppStorage("refreshInterval") private var refreshInterval: Double = 60
     @AppStorage("menuBarProvider") private var menuBarProvider: String = MenuBarProvider.claude.rawValue
     @AppStorage("menuBarDisplayMode") private var menuBarDisplayMode: String = MenuBarDisplayMode.percent.rawValue
@@ -135,6 +137,7 @@ struct AIMeterApp: App {
                     .environmentObject(authManager)
                     .environmentObject(statsService)
                     .environmentObject(historyService)
+                    .environmentObject(providerStatusService)
                     .task {
                         UNUserNotificationCenter.current().delegate = NotificationDelegate.shared
                         NotificationManager.shared.requestPermission()
@@ -144,6 +147,7 @@ struct AIMeterApp: App {
                         kimiService.start(interval: interval(for: .kimi))
                         codexService.start(interval: interval(for: .codex), authManager: codexAuthManager)
                         statsService.start(interval: interval(for: .claude))
+                        if checkProviderStatus { providerStatusService.start() }
 
                         if recapService == nil {
                             recapService = RecapService(quotaHistoryService: historyService, copilotHistoryService: copilotHistoryService)
@@ -165,6 +169,9 @@ struct AIMeterApp: App {
                     .onChange(of: refreshGLM) { _, _ in restartAll() }
                     .onChange(of: refreshKimi) { _, _ in restartAll() }
                     .onChange(of: refreshCodex) { _, _ in restartAll() }
+                    .onChange(of: checkProviderStatus) { _, enabled in
+                        if enabled { providerStatusService.start() } else { providerStatusService.stop() }
+                    }
                     .onChange(of: authManager.isAuthenticated) { _, isAuth in
                         if isAuth {
                             Task { await service.fetch() }
