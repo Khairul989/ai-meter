@@ -213,6 +213,23 @@ struct AIMeterApp: App {
     }
 }
 
+@MainActor
+@Observable
+final class MenuBarLabelState {
+    private(set) var cachedImage: NSImage?
+    private var lastText: String = ""
+    private var lastUtilization: Int = -1
+
+    func updateIfNeeded(labelText: String, utilization: Int) {
+        guard labelText != lastText || utilization != lastUtilization else { return }
+        lastText = labelText
+        lastUtilization = utilization
+        let color = UsageColor.forUtilization(utilization)
+        let content = MenuBarLabelContent(labelText: labelText, color: color, opacity: 1.0)
+        cachedImage = MenuBarImageRenderer.render(content)
+    }
+}
+
 struct MenuBarLabel: View {
     let labelText: String
     let utilization: Int
@@ -221,37 +238,31 @@ struct MenuBarLabel: View {
     @AppStorage("loadingPattern") private var loadingPatternRaw: String = LoadingPattern.fade.rawValue
     private let cycleDuration: Double = 2.0
 
+    @State private var state = MenuBarLabelState()
+
     private var loadingPattern: LoadingPattern {
         LoadingPattern(rawValue: loadingPatternRaw) ?? .fade
     }
 
-    private var usageColor: Color {
-        UsageColor.forUtilization(utilization)
-    }
-
-    private var renderedImage: NSImage? {
-        let content = MenuBarLabelContent(labelText: labelText, color: usageColor, opacity: 1.0)
-        return MenuBarImageRenderer.render(content)
-    }
-
     var body: some View {
+        let _ = state.updateIfNeeded(labelText: labelText, utilization: utilization)
         if isRefreshing {
             TimelineView(.animation(minimumInterval: 0.15, paused: false)) { context in
                 let phase = context.date.timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: cycleDuration) / cycleDuration
-                if let img = renderedImage {
-                    Image(nsImage: img)
-                        .opacity(loadingPattern.opacity(at: phase))
-                } else {
-                    Image(systemName: "sparkles")
-                        .opacity(loadingPattern.opacity(at: phase))
-                }
+                menuBarContent
+                    .opacity(loadingPattern.opacity(at: phase))
             }
         } else {
-            if let img = renderedImage {
-                Image(nsImage: img)
-            } else {
-                Image(systemName: "sparkles")
-            }
+            menuBarContent
+        }
+    }
+
+    @ViewBuilder
+    private var menuBarContent: some View {
+        if let img = state.cachedImage {
+            Image(nsImage: img)
+        } else {
+            Image(systemName: "sparkles")
         }
     }
 
