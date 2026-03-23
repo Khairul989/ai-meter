@@ -217,6 +217,7 @@ struct AIMeterApp: App {
 @Observable
 final class MenuBarLabelState {
     private(set) var cachedImage: NSImage?
+    private(set) var loadingImage: NSImage?
     private var lastText: String = ""
     private var lastUtilization: Int = -1
 
@@ -225,8 +226,8 @@ final class MenuBarLabelState {
         lastText = labelText
         lastUtilization = utilization
         let color = UsageColor.forUtilization(utilization)
-        let content = MenuBarLabelContent(labelText: labelText, color: color, opacity: 1.0)
-        cachedImage = MenuBarImageRenderer.render(content)
+        cachedImage = MenuBarImageRenderer.render(MenuBarLabelContent(labelText: labelText, color: color, opacity: 1.0))
+        loadingImage = MenuBarImageRenderer.render(MenuBarLabelContent(labelText: labelText, color: color, opacity: 0.4))
     }
 }
 
@@ -235,31 +236,13 @@ struct MenuBarLabel: View {
     let utilization: Int
     let isRefreshing: Bool
 
-    @AppStorage("loadingPattern") private var loadingPatternRaw: String = LoadingPattern.fade.rawValue
-    private let cycleDuration: Double = 2.0
-
     @State private var state = MenuBarLabelState()
-
-    private var loadingPattern: LoadingPattern {
-        LoadingPattern(rawValue: loadingPatternRaw) ?? .fade
-    }
 
     var body: some View {
         let _ = state.updateIfNeeded(labelText: labelText, utilization: utilization)
-        if isRefreshing {
-            TimelineView(.animation(minimumInterval: 0.15, paused: false)) { context in
-                let phase = context.date.timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: cycleDuration) / cycleDuration
-                menuBarContent
-                    .opacity(loadingPattern.opacity(at: phase))
-            }
-        } else {
-            menuBarContent
-        }
-    }
-
-    @ViewBuilder
-    private var menuBarContent: some View {
-        if let img = state.cachedImage {
+        if isRefreshing, let img = state.loadingImage {
+            Image(nsImage: img)
+        } else if let img = state.cachedImage {
             Image(nsImage: img)
         } else {
             Image(systemName: "sparkles")
