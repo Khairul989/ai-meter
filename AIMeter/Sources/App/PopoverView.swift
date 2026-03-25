@@ -3,10 +3,10 @@ import SwiftUI
 // MARK: - Tab
 
 enum Tab: String {
-    case claude, copilot, glm, kimi, codex, settings
+    case claude, copilot, glm, kimi, codex, minimax, settings
 
-    static let defaultOrder: [Tab] = [.claude, .copilot, .glm, .kimi, .codex]
-    static let defaultOrderString = "claude,copilot,glm,kimi,codex"
+    static let defaultOrder: [Tab] = [.claude, .copilot, .glm, .kimi, .codex, .minimax]
+    static let defaultOrderString = "claude,copilot,glm,kimi,codex,minimax"
 
     var displayName: String {
         switch self {
@@ -15,6 +15,7 @@ enum Tab: String {
         case .glm:      return "GLM"
         case .kimi:     return "Kimi"
         case .codex:    return "Codex"
+        case .minimax:  return "MiniMax"
         case .settings: return "Settings"
         }
     }
@@ -26,6 +27,7 @@ enum Tab: String {
         case .glm:      return .asset("glm")
         case .kimi:     return .asset("kimi")
         case .codex:    return .asset("codex")
+        case .minimax:  return .asset("minimax")
         case .settings: return .system("gear")
         }
     }
@@ -37,6 +39,7 @@ enum Tab: String {
         case .glm:      return "glm-small"
         case .kimi:     return "kimi-small"
         case .codex:    return "codex-small"
+        case .minimax:  return "minimax-small"
         case .settings: return ""
         }
     }
@@ -48,7 +51,8 @@ enum Tab: String {
         case .glm:      return 2
         case .kimi:     return 3
         case .codex:    return 4
-        case .settings: return 5
+        case .minimax:  return 5
+        case .settings: return 6
         }
     }
 }
@@ -143,6 +147,7 @@ struct SummaryStripView: View {
     let glmUtilization: Int?
     let kimiBalance: Double?
     let codexUtilization: Int?
+    let minimaxUtilization: Int?
 
     var body: some View {
         HStack(spacing: 4) {
@@ -160,6 +165,9 @@ struct SummaryStripView: View {
             }
             if let util = codexUtilization {
                 pill(tab: .codex, theme: .codex, text: "\(util)%", utilization: util)
+            }
+            if let util = minimaxUtilization {
+                pill(tab: .minimax, theme: .minimax, text: "\(util)%", utilization: util)
             }
         }
     }
@@ -202,6 +210,8 @@ struct PopoverView: View {
     @EnvironmentObject var kimiService: KimiService
     @EnvironmentObject var codexService: CodexService
     @EnvironmentObject var codexAuthManager: CodexAuthManager
+    @EnvironmentObject var minimaxService: MinimaxService
+    @EnvironmentObject var minimaxHistoryService: MinimaxHistoryService
     @EnvironmentObject var updaterManager: UpdaterManager
     @EnvironmentObject var authManager: SessionAuthManager
     @EnvironmentObject var statsService: ClaudeCodeStatsService
@@ -309,7 +319,8 @@ struct PopoverView: View {
                     copilotUtilization: copilotService.error != .noToken ? copilotService.copilotData.premiumInteractions.utilization : nil,
                     glmUtilization: glmService.error != .noKey ? glmService.glmData.tokensPercent : nil,
                     kimiBalance: kimiService.error != .noKey ? kimiService.kimiData.totalBalance : nil,
-                    codexUtilization: codexAuthManager.isAuthenticated ? codexService.codexData.primaryPercent : nil
+                    codexUtilization: codexAuthManager.isAuthenticated ? codexService.codexData.primaryPercent : nil,
+                    minimaxUtilization: minimaxService.error != .noKey ? minimaxService.minimaxData.highestIntervalPercent : nil
                 )
                 .padding(.bottom, 6)
             }
@@ -335,6 +346,10 @@ struct PopoverView: View {
                     })
                 case .codex:
                     CodexTabView(codexService: codexService, codexAuthManager: codexAuthManager, historyService: codexHistoryService, timeZone: configuredTimeZone, providerStatus: providerStatusService.statuses["Codex"])
+                case .minimax:
+                    MinimaxTabView(minimaxService: minimaxService, historyService: minimaxHistoryService, onKeySaved: {
+                        Task { await minimaxService.fetch() }
+                    })
                 case .settings:
                     EmptyView()
                 }
@@ -460,7 +475,10 @@ struct PopoverView: View {
                 case "5":
                     switchTab(to: .codex)
                     return nil
-                case "6", ",":
+                case "6":
+                    switchTab(to: .minimax)
+                    return nil
+                case "7", ",":
                     showSettingsWindow()
                     return nil
                 default:
@@ -484,6 +502,7 @@ struct PopoverView: View {
             case "glm": selectedTab = .glm
             case "kimi": selectedTab = .kimi
             case "codex": selectedTab = .codex
+            case "minimax": selectedTab = .minimax
             default: break
             }
         }
@@ -503,6 +522,7 @@ struct PopoverView: View {
         case .glm: return glmService.isStale
         case .kimi: return kimiService.isStale
         case .codex: return codexService.isStale
+        case .minimax: return minimaxService.isStale
         case .settings: return false
         }
     }
@@ -515,6 +535,7 @@ struct PopoverView: View {
         case .glm: fetchedAt = glmService.glmData.fetchedAt
         case .kimi: fetchedAt = kimiService.kimiData.fetchedAt
         case .codex: fetchedAt = codexService.codexData.fetchedAt
+        case .minimax: fetchedAt = minimaxService.minimaxData.fetchedAt
         case .settings: return ""
         }
         if fetchedAt == .distantPast { return "" }

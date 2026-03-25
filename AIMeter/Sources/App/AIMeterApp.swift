@@ -37,6 +37,7 @@ enum MenuBarProvider: String, CaseIterable {
     case glm = "glm"
     case kimi = "kimi"
     case codex = "codex"
+    case minimax = "minimax"
 
     var displayName: String {
         switch self {
@@ -45,6 +46,7 @@ enum MenuBarProvider: String, CaseIterable {
         case .glm: "GLM"
         case .kimi: "Kimi"
         case .codex: "Codex"
+        case .minimax: "MiniMax"
         }
     }
 }
@@ -61,6 +63,8 @@ struct AIMeterApp: App {
     @StateObject private var kimiService = KimiService()
     @StateObject private var codexService = CodexService()
     @StateObject private var codexAuthManager = CodexAuthManager()
+    @StateObject private var minimaxService = MinimaxService()
+    @StateObject private var minimaxHistoryService = MinimaxHistoryService()
     @StateObject private var updaterManager = UpdaterManager()
     @StateObject private var authManager = SessionAuthManager()
     @StateObject private var historyService = QuotaHistoryService()
@@ -76,6 +80,7 @@ struct AIMeterApp: App {
     @AppStorage("refreshGLM") private var refreshGLM: Double = 120
     @AppStorage("refreshKimi") private var refreshKimi: Double = 300
     @AppStorage("refreshCodex") private var refreshCodex: Double = 300
+    @AppStorage("refreshMinimax") private var refreshMinimax: Double = 120
     @State private var isRefreshing = false
     @State private var recapService: RecapService?
     @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding = false
@@ -88,6 +93,7 @@ struct AIMeterApp: App {
         case .glm: return refreshGLM
         case .kimi: return refreshKimi
         case .codex: return refreshCodex
+        case .minimax: return refreshMinimax
         }
     }
 
@@ -102,6 +108,7 @@ struct AIMeterApp: App {
                     group.addTask { await glmService.fetch() }
                     group.addTask { await kimiService.fetch() }
                     group.addTask { await codexService.fetch() }
+                    group.addTask { await minimaxService.fetch() }
                 }
                 statsService.load()
                 try? await Task.sleep(for: .milliseconds(600))
@@ -119,6 +126,8 @@ struct AIMeterApp: App {
             kimiService.start(interval: interval(for: .kimi), historyService: kimiHistoryService)
             codexService.stop()
             codexService.start(interval: interval(for: .codex), authManager: codexAuthManager, historyService: codexHistoryService)
+            minimaxService.stop()
+            minimaxService.start(interval: interval(for: .minimax), historyService: minimaxHistoryService)
             statsService.stop()
             statsService.start(interval: interval(for: .claude))
         }
@@ -137,6 +146,8 @@ struct AIMeterApp: App {
                     .environmentObject(kimiService)
                     .environmentObject(codexService)
                     .environmentObject(codexAuthManager)
+                    .environmentObject(minimaxService)
+                    .environmentObject(minimaxHistoryService)
                     .environmentObject(updaterManager)
                     .environmentObject(authManager)
                     .environmentObject(statsService)
@@ -150,6 +161,7 @@ struct AIMeterApp: App {
                         glmService.start(interval: interval(for: .glm), historyService: glmHistoryService)
                         kimiService.start(interval: interval(for: .kimi), historyService: kimiHistoryService)
                         codexService.start(interval: interval(for: .codex), authManager: codexAuthManager, historyService: codexHistoryService)
+                        minimaxService.start(interval: interval(for: .minimax), historyService: minimaxHistoryService)
                         statsService.start(interval: interval(for: .claude))
                         if checkProviderStatus { providerStatusService.start() }
 
@@ -180,6 +192,7 @@ struct AIMeterApp: App {
                     .onChange(of: refreshGLM) { _, _ in restartAll() }
                     .onChange(of: refreshKimi) { _, _ in restartAll() }
                     .onChange(of: refreshCodex) { _, _ in restartAll() }
+                    .onChange(of: refreshMinimax) { _, _ in restartAll() }
                     .onChange(of: checkProviderStatus) { _, enabled in
                         if enabled { providerStatusService.start() } else { providerStatusService.stop() }
                     }
@@ -201,7 +214,7 @@ struct AIMeterApp: App {
                 provider: selected, displayMode: mode,
                 usageData: service.usageData, copilotData: copilotService.copilotData,
                 glmData: glmService.glmData, kimiData: kimiService.kimiData,
-                codexData: codexService.codexData
+                codexData: codexService.codexData, minimaxData: minimaxService.minimaxData
             )
             MenuBarLabel(
                 labelText: labelInfo.text,
@@ -257,7 +270,8 @@ struct MenuBarLabel: View {
     static func extractLabelInfo(
         provider: MenuBarProvider, displayMode: MenuBarDisplayMode,
         usageData: UsageData, copilotData: CopilotUsageData,
-        glmData: GLMUsageData, kimiData: KimiUsageData, codexData: CodexUsageData
+        glmData: GLMUsageData, kimiData: KimiUsageData, codexData: CodexUsageData,
+        minimaxData: MinimaxUsageData
     ) -> LabelInfo {
         let text: String
         let utilization: Int
@@ -316,6 +330,9 @@ struct MenuBarLabel: View {
         case .codex:
             text = "\(codexData.primaryPercent)%"
             utilization = codexData.highestUtilization
+        case .minimax:
+            text = "\(minimaxData.highestIntervalPercent)%"
+            utilization = minimaxData.highestIntervalPercent
         }
 
         return LabelInfo(text: text, utilization: utilization)

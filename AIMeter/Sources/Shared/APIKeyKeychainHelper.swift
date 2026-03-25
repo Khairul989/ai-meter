@@ -8,6 +8,7 @@ struct APIKeyKeychainHelper {
 
     static let glm = APIKeyKeychainHelper(serviceName: "glm-api-key")
     static let kimi = APIKeyKeychainHelper(serviceName: "kimi-api-key")
+    static let minimax = APIKeyKeychainHelper(serviceName: "minimax-api-key")
 
     /// Read API key from Keychain
     func readAPIKey() -> String? {

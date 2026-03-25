@@ -130,6 +130,8 @@ struct AccountsSettingsSection: View {
     @State private var glmKeySaved: Bool = false
     @State private var kimiKeyInput: String = ""
     @State private var kimiKeySaved: Bool = false
+    @State private var minimaxKeyInput: String = ""
+    @State private var minimaxKeySaved: Bool = false
     @State private var showCodexSignOutConfirmation = false
 
     var body: some View {
@@ -280,6 +282,54 @@ struct AccountsSettingsSection: View {
                             .font(.system(size: 11))
                             .buttonStyle(.plain)
                             .foregroundColor(kimiKeySaved ? .green : .accentColor)
+                        }
+                    }
+                }
+
+                Divider().opacity(0.3)
+
+                HStack(spacing: 6) {
+                    Image(systemName: "key.fill")
+                        .font(.system(size: 11))
+                        .foregroundColor(.secondary)
+                    Text("MiniMax API Key")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundColor(.secondary)
+                }
+
+                if MinimaxService.keyIsFromEnvironment {
+                    Text("Using MINIMAX_API_KEY from environment")
+                        .font(.system(size: 11))
+                        .foregroundColor(.secondary)
+                        .italic()
+                } else if APIKeyKeychainHelper.minimax.readAPIKey() != nil && minimaxKeyInput.isEmpty {
+                    HStack {
+                        Text("••••••••")
+                            .font(.system(size: 12))
+                            .foregroundColor(.secondary)
+                        Spacer()
+                        Button("Clear") {
+                            APIKeyKeychainHelper.minimax.deleteAPIKey()
+                            minimaxKeySaved = false
+                        }
+                        .font(.system(size: 11))
+                        .buttonStyle(.plain)
+                        .foregroundColor(.red)
+                    }
+                } else {
+                    HStack {
+                        SecureField("Paste API key…", text: $minimaxKeyInput)
+                            .font(.system(size: 12))
+                            .textFieldStyle(.plain)
+                        if !minimaxKeyInput.isEmpty {
+                            Button(minimaxKeySaved ? "Saved ✓" : "Save") {
+                                APIKeyKeychainHelper.minimax.saveAPIKey(minimaxKeyInput)
+                                minimaxKeySaved = true
+                                minimaxKeyInput = ""
+                            }
+                            .font(.system(size: 11))
+                            .buttonStyle(.plain)
+                            .foregroundColor(minimaxKeySaved ? .green : .accentColor)
                         }
                     }
                 }

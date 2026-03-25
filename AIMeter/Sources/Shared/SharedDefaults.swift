@@ -67,6 +67,18 @@ enum SharedDefaults {
         return decoded
     }
 
+    static func saveMinimax(_ data: MinimaxUsageData) {
+        guard let encoded = try? JSONEncoder.appEncoder.encode(data) else { return }
+        suite?.set(encoded, forKey: "minimaxData")
+    }
+
+    static func loadMinimax() -> MinimaxUsageData? {
+        guard let data = suite?.data(forKey: "minimaxData"),
+              let decoded = try? JSONDecoder.appDecoder.decode(MinimaxUsageData.self, from: data)
+        else { return nil }
+        return decoded
+    }
+
     static func configuredTimeZone(for offset: Int) -> TimeZone {
         TimeZone(secondsFromGMT: offset * 3600) ?? .current
     }
