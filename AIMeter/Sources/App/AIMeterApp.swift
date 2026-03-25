@@ -61,6 +61,7 @@ struct AIMeterApp: App {
     @StateObject private var kimiService = KimiService()
     @StateObject private var codexService = CodexService()
     @StateObject private var codexAuthManager = CodexAuthManager()
+    @StateObject private var kimiAuthManager = KimiAuthManager()
     @StateObject private var updaterManager = UpdaterManager()
     @StateObject private var authManager = SessionAuthManager()
     @StateObject private var historyService = QuotaHistoryService()
@@ -116,7 +117,7 @@ struct AIMeterApp: App {
             glmService.stop()
             glmService.start(interval: interval(for: .glm), historyService: glmHistoryService)
             kimiService.stop()
-            kimiService.start(interval: interval(for: .kimi), historyService: kimiHistoryService)
+            kimiService.start(interval: interval(for: .kimi), authManager: kimiAuthManager, historyService: kimiHistoryService)
             codexService.stop()
             codexService.start(interval: interval(for: .codex), authManager: codexAuthManager, historyService: codexHistoryService)
             statsService.stop()
@@ -137,6 +138,7 @@ struct AIMeterApp: App {
                     .environmentObject(kimiService)
                     .environmentObject(codexService)
                     .environmentObject(codexAuthManager)
+                    .environmentObject(kimiAuthManager)
                     .environmentObject(updaterManager)
                     .environmentObject(authManager)
                     .environmentObject(statsService)
@@ -148,7 +150,7 @@ struct AIMeterApp: App {
                         service.start(interval: interval(for: .claude), authManager: authManager, historyService: historyService)
                         copilotService.start(interval: interval(for: .copilot), historyService: copilotHistoryService)
                         glmService.start(interval: interval(for: .glm), historyService: glmHistoryService)
-                        kimiService.start(interval: interval(for: .kimi), historyService: kimiHistoryService)
+                        kimiService.start(interval: interval(for: .kimi), authManager: kimiAuthManager, historyService: kimiHistoryService)
                         codexService.start(interval: interval(for: .codex), authManager: codexAuthManager, historyService: codexHistoryService)
                         statsService.start(interval: interval(for: .claude))
                         if checkProviderStatus { providerStatusService.start() }
@@ -191,6 +193,11 @@ struct AIMeterApp: App {
                     .onChange(of: codexAuthManager.isAuthenticated) { _, isAuth in
                         if isAuth {
                             Task { await codexService.fetch() }
+                        }
+                    }
+                    .onChange(of: kimiAuthManager.isAuthenticated) { _, isAuth in
+                        if isAuth {
+                            Task { await kimiService.fetch() }
                         }
                     }
             }
@@ -311,8 +318,8 @@ struct MenuBarLabel: View {
             text = "\(glmData.tokensPercent)%"
             utilization = glmData.tokensPercent
         case .kimi:
-            text = String(format: "¥%.2f", kimiData.totalBalance)
-            utilization = kimiData.totalBalance > 0 ? 10 : 100
+            text = "\(kimiData.utilizationPercent)%"
+            utilization = kimiData.utilizationPercent
         case .codex:
             text = "\(codexData.primaryPercent)%"
             utilization = codexData.highestUtilization
