@@ -202,6 +202,7 @@ struct PopoverView: View {
     @EnvironmentObject var kimiService: KimiService
     @EnvironmentObject var codexService: CodexService
     @EnvironmentObject var codexAuthManager: CodexAuthManager
+    @EnvironmentObject var kimiAuthManager: KimiAuthManager
     @EnvironmentObject var updaterManager: UpdaterManager
     @EnvironmentObject var authManager: SessionAuthManager
     @EnvironmentObject var statsService: ClaudeCodeStatsService
@@ -330,9 +331,7 @@ struct PopoverView: View {
                         Task { await glmService.fetch() }
                     })
                 case .kimi:
-                    KimiTabView(kimiService: kimiService, historyService: kimiHistoryService, onKeySaved: {
-                        Task { await kimiService.fetch() }
-                    })
+                    KimiTabView(kimiService: kimiService, historyService: kimiHistoryService, authManager: kimiAuthManager)
                 case .codex:
                     CodexTabView(codexService: codexService, codexAuthManager: codexAuthManager, historyService: codexHistoryService, timeZone: configuredTimeZone, providerStatus: providerStatusService.statuses["Codex"])
                 case .settings:
