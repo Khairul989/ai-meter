@@ -58,12 +58,29 @@ struct KimiTabView: View {
                     ErrorBannerView(message: "Rate limited — retrying", retryDate: kimiService.retryDate)
                 }
 
-                // Main usage card
-                usageCard
+                // Main usage card - Weekly
+                UsageCardView(
+                    icon: "chart.bar.fill",
+                    title: "Weekly",
+                    subtitle: "Total usage",
+                    percentage: kimiService.kimiData.utilizationPercent,
+                    resetText: kimiService.kimiData.resetTimeFormatted,
+                    accentColor: ProviderTheme.kimi.accentColor,
+                    isPrimary: true
+                )
 
                 // Rate limit windows
                 ForEach(kimiService.kimiData.limits.indices, id: \.self) { index in
-                    limitWindowCard(kimiService.kimiData.limits[index])
+                    let limit = kimiService.kimiData.limits[index]
+                    let percentage = limit.detail.limit > 0 ? Int((Double(limit.detail.used) / Double(limit.detail.limit)) * 100) : 0
+                    UsageCardView(
+                        icon: "clock.fill",
+                        title: windowTitle(for: limit.window.duration),
+                        subtitle: "\(limit.detail.remaining) remaining",
+                        percentage: percentage,
+                        resetText: limit.detail.resetTime.map { formatResetTime($0) },
+                        accentColor: ProviderTheme.kimi.accentColor
+                    )
                 }
 
                 // History chart
@@ -83,136 +100,17 @@ struct KimiTabView: View {
         }
     }
 
-    private var usageCard: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Image(systemName: "chart.bar.fill")
-                    .font(.system(size: 13))
-                    .foregroundColor(.secondary)
-                Text("Weekly Usage")
-                    .font(.system(size: 13, weight: .medium))
-                    .foregroundColor(.white)
-                Spacer()
-                if let resetTime = kimiService.kimiData.resetTimeFormatted {
-                    Text("Resets: \(resetTime)")
-                        .font(.system(size: 11))
-                        .foregroundColor(.secondary)
-                }
-            }
-
-            HStack(alignment: .lastTextBaseline, spacing: 4) {
-                Text("\(kimiService.kimiData.detail.used)")
-                    .font(.system(size: 28, weight: .bold, design: .rounded))
-                    .foregroundColor(.white)
-                Text("/ \(kimiService.kimiData.detail.limit)")
-                    .font(.system(size: 14))
-                    .foregroundColor(.secondary)
-                Spacer()
-                Text("\(kimiService.kimiData.utilizationPercent)%")
-                    .font(.system(size: 18, weight: .semibold, design: .rounded))
-                    .foregroundColor(utilizationColor)
-            }
-
-            GeometryReader { geometry in
-                let width = geometry.size.width
-                let progress = min(Double(kimiService.kimiData.detail.used) / Double(max(kimiService.kimiData.detail.limit, 1)), 1.0)
-
-                ZStack(alignment: .leading) {
-                    RoundedRectangle(cornerRadius: 4)
-                        .fill(Color.white.opacity(0.1))
-                        .frame(height: 8)
-
-                    RoundedRectangle(cornerRadius: 4)
-                        .fill(utilizationColor)
-                        .frame(width: width * progress, height: 8)
-                }
-            }
-            .frame(height: 8)
+    private func windowTitle(for duration: Int) -> String {
+        if duration == 300 {
+            return "5-hour Window"
         }
-        .padding(12)
-        .background(Color.white.opacity(0.05))
-        .clipShape(RoundedRectangle(cornerRadius: 12))
-        .overlay(alignment: .leading) {
-            RoundedRectangle(cornerRadius: 2)
-                .frame(width: 3)
-                .foregroundColor(ProviderTheme.kimi.accentColor)
-        }
-    }
-
-    private func limitWindowCard(_ limit: KimiLimitWindow) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Image(systemName: "clock.fill")
-                    .font(.system(size: 12))
-                    .foregroundColor(.secondary)
-                Text(windowDurationText(limit.window.duration))
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundColor(.white)
-                Spacer()
-                if let resetTime = limit.detail.resetTime {
-                    Text("Resets: \(formatResetTime(resetTime))")
-                        .font(.system(size: 11))
-                        .foregroundColor(.secondary)
-                }
-            }
-
-            HStack {
-                let percentage = limit.detail.limit > 0 ? Int((Double(limit.detail.used) / Double(limit.detail.limit)) * 100) : 0
-                Text("\(percentage)%")
-                    .font(.system(size: 14, weight: .semibold, design: .rounded))
-                    .foregroundColor(utilizationColor(for: limit.detail))
-                Text("(\(limit.detail.used)/\(limit.detail.limit))")
-                    .font(.system(size: 12))
-                    .foregroundColor(.secondary)
-                Spacer()
-                Text("\(limit.detail.remaining) remaining")
-                    .font(.system(size: 11))
-                    .foregroundColor(.secondary)
-            }
-
-            GeometryReader { geometry in
-                let width = geometry.size.width
-                let progress = min(Double(limit.detail.used) / Double(max(limit.detail.limit, 1)), 1.0)
-
-                ZStack(alignment: .leading) {
-                    RoundedRectangle(cornerRadius: 3)
-                        .fill(Color.white.opacity(0.1))
-                        .frame(height: 6)
-
-                    RoundedRectangle(cornerRadius: 3)
-                        .fill(utilizationColor(for: limit.detail))
-                        .frame(width: width * progress, height: 6)
-                }
-            }
-            .frame(height: 6)
-        }
-        .padding(10)
-        .background(Color.white.opacity(0.03))
-        .clipShape(RoundedRectangle(cornerRadius: 10))
-    }
-
-    private var utilizationColor: Color {
-        utilizationColor(for: kimiService.kimiData.detail)
-    }
-
-    private func utilizationColor(for detail: KimiUsageDetail) -> Color {
-        let pct = Double(detail.used) / Double(max(detail.limit, 1)) * 100
-        if pct < 50 { return .green }
-        if pct < 80 { return .yellow }
-        return .red
+        return "\(duration)-minute Window"
     }
 
     private func shortDateLabel(_ date: Date) -> String {
         let formatter = DateFormatter()
         formatter.dateFormat = "HH:mm"
         return formatter.string(from: date)
-    }
-
-    private func windowDurationText(_ duration: Int) -> String {
-        if duration == 300 {
-            return "5-hour Window"
-        }
-        return "\(duration)-minute Window"
     }
 
     private func formatResetTime(_ date: Date) -> String {

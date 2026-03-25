@@ -88,7 +88,7 @@ final class KimiLoginWindowManager {
 
         let win = NSWindow(
             contentRect: NSRect(x: 0, y: 0, width: 480, height: 640),
-            styleMask: [.titled, .closable],
+            styleMask: [.titled, .closable, .resizable],
             backing: .buffered,
             defer: false
         )
@@ -307,32 +307,6 @@ final class KimiLoginCoordinator: NSObject, ObservableObject, WKNavigationDelega
             if case .success = self.loginState { return }
             self.loginState = .waitingForLogin
             self.startCookieMonitoring()
-            self.resizeWindowToFitContent()
-        }
-    }
-
-    private func resizeWindowToFitContent() {
-        webView.evaluateJavaScript("document.body.scrollHeight") { [weak self] result, _ in
-            guard let self = self,
-                  let contentHeight = result as? CGFloat,
-                  contentHeight > 0,
-                  let window = self.window else { return }
-
-            let statusBarHeight: CGFloat = 60
-            let padding: CGFloat = 40
-            let minHeight: CGFloat = 640
-            let maxHeight: CGFloat = 900
-
-            let targetHeight = min(max(contentHeight + statusBarHeight + padding, minHeight), maxHeight)
-            let currentFrame = window.frame
-            let newFrame = NSRect(
-                x: currentFrame.origin.x,
-                y: currentFrame.origin.y + (currentFrame.height - targetHeight),
-                width: currentFrame.width,
-                height: targetHeight
-            )
-
-            window.setFrame(newFrame, display: true, animate: true)
         }
     }
 
