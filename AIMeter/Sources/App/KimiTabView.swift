@@ -3,63 +3,106 @@ import SwiftUI
 struct KimiTabView: View {
     @ObservedObject var kimiService: KimiService
     @ObservedObject var historyService: KimiHistoryService
-    var onKeySaved: (() -> Void)? = nil
+    @ObservedObject var authManager: KimiAuthManager
 
     var body: some View {
-        if kimiService.error == .noKey {
-            APIKeyInputView(
-                providerName: "Kimi",
-                placeholder: "KIMI_API_KEY…",
-                accentColor: ProviderTheme.kimi.accentColor
-            ) { key in
-                APIKeyKeychainHelper.kimi.saveAPIKey(key)
-                onKeySaved?()
-            }
+        if !authManager.isAuthenticated {
+            signInPromptView
         } else {
-            VStack(spacing: 8) {
-                    if case .fetchFailed = kimiService.error {
-                        ErrorBannerView(message: "Failed to fetch balance") {
-                            Task { await kimiService.fetch() }
-                        }
-                    }
-                    if case .rateLimited = kimiService.error {
-                        ErrorBannerView(message: "Rate limited — retrying", retryDate: kimiService.retryDate)
-                    }
-                    balanceRow(
-                        icon: "yensign.circle.fill",
-                        title: "Cash Balance",
-                        value: kimiService.kimiData.cashBalance
-                    )
-                    balanceRow(
-                        icon: "ticket.fill",
-                        title: "Voucher Balance",
-                        value: kimiService.kimiData.voucherBalance
-                    )
-                    HStack {
-                        Text("Total Available")
-                            .font(.system(size: 12))
-                            .foregroundColor(.secondary)
-                        Spacer()
-                        Text(String(format: "¥%.4f", kimiService.kimiData.totalBalance))
-                            .font(.system(size: 14, weight: .bold, design: .rounded))
-                            .foregroundColor(kimiService.kimiData.totalBalance > 0 ? .green : .red)
-                    }
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 10)
-                    .background(Color.white.opacity(0.05))
-                    .clipShape(RoundedRectangle(cornerRadius: AppRadius.card))
-
-                    UsageHistoryChartView(
-                        title: "Balance History",
-                        dataPoints: historyService.history.dataPoints.map {
-                            (date: $0.timestamp, value: $0.totalBalance, label: shortDateLabel($0.timestamp))
-                        },
-                        // Currency y-axis: show 2 decimal places
-                        valueFormatter: { String(format: "¥%.2f", $0) },
-                        accentColor: ProviderTheme.kimi.accentColor
-                    )
-                }
+            usageContentView
         }
+    }
+
+    private var signInPromptView: some View {
+        VStack(spacing: 16) {
+            Image(systemName: "person.circle.fill")
+                .font(.system(size: 48))
+                .foregroundColor(.secondary)
+
+            Text("Sign in to Kimi")
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundColor(.white)
+
+            Text("Access your Kimi for Coding usage data")
+                .font(.system(size: 12))
+                .foregroundColor(.secondary)
+                .multilineTextAlignment(.center)
+
+            Button("Sign in with Kimi") {
+                authManager.openLoginWindow()
+            }
+            .font(.system(size: 13, weight: .medium))
+            .buttonStyle(.borderedProminent)
+            .controlSize(.regular)
+
+            if let error = authManager.lastError {
+                Text(error)
+                    .font(.system(size: 11))
+                    .foregroundColor(.red)
+                    .multilineTextAlignment(.center)
+            }
+        }
+        .padding(24)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private var usageContentView: some View {
+        VStack(spacing: 12) {
+            if case .fetchFailed = kimiService.error {
+                ErrorBannerView(message: "Failed to fetch usage") {
+                    Task { await kimiService.fetch() }
+                }
+            }
+            if case .rateLimited = kimiService.error {
+                ErrorBannerView(message: "Rate limited — retrying", retryDate: kimiService.retryDate)
+            }
+
+            // Main usage card - Weekly
+            UsageCardView(
+                icon: "chart.bar.fill",
+                title: "Weekly",
+                subtitle: "Total usage",
+                percentage: kimiService.kimiData.utilizationPercent,
+                resetText: kimiService.kimiData.resetTimeFormatted,
+                accentColor: ProviderTheme.kimi.accentColor,
+                isPrimary: true
+            )
+
+            // Rate limit windows
+            ForEach(kimiService.kimiData.limits.indices, id: \.self) { index in
+                let limit = kimiService.kimiData.limits[index]
+                let percentage = limit.detail.limit > 0 ? Int((Double(limit.detail.used) / Double(limit.detail.limit)) * 100) : 0
+                UsageCardView(
+                    icon: "clock.fill",
+                    title: windowTitle(for: limit.window.duration),
+                    subtitle: "\(limit.detail.remaining) remaining",
+                    percentage: percentage,
+                    resetText: limit.detail.resetTime.map { formatResetTime($0) },
+                    accentColor: ProviderTheme.kimi.accentColor
+                )
+            }
+
+            // History chart
+            if !historyService.history.dataPoints.isEmpty {
+                UsageHistoryChartView(
+                    title: "Usage History",
+                    dataPoints: historyService.history.dataPoints.map {
+                        (date: $0.timestamp, value: Double($0.utilization), label: shortDateLabel($0.timestamp))
+                    },
+                    valueFormatter: { "\(Int($0))%" },
+                    accentColor: ProviderTheme.kimi.accentColor
+                )
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+    }
+
+    private func windowTitle(for duration: Int) -> String {
+        if duration == 300 {
+            return "5-hour Window"
+        }
+        return "\(duration)-minute Window"
     }
 
     private func shortDateLabel(_ date: Date) -> String {
@@ -68,31 +111,10 @@ struct KimiTabView: View {
         return formatter.string(from: date)
     }
 
-    @ViewBuilder
-    private func balanceRow(icon: String, title: String, value: Double) -> some View {
-        HStack {
-            Image(systemName: icon)
-                .font(.system(size: 13))
-                .foregroundColor(.secondary)
-                .frame(width: 20)
-            Text(title)
-                .font(.system(size: 13, weight: .medium))
-                .foregroundColor(.white)
-            Spacer()
-            Text(String(format: "¥%.4f", value))
-                .font(.system(size: 13, weight: .semibold, design: .rounded))
-                .foregroundColor(value > 0 ? .white : .secondary)
-        }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 10)
-        .background(Color.white.opacity(0.05))
-        .clipShape(RoundedRectangle(cornerRadius: AppRadius.card))
-        .overlay(alignment: .leading) {
-            RoundedRectangle(cornerRadius: 2)
-                .frame(width: 2)
-                .foregroundColor(ProviderTheme.kimi.accentColor)
-        }
+    private func formatResetTime(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .medium
+        formatter.timeStyle = .short
+        return formatter.string(from: date)
     }
-
-
 }

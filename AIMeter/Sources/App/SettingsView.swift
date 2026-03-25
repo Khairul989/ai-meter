@@ -34,6 +34,7 @@ struct SettingsView: View {
     @ObservedObject var updaterManager: UpdaterManager
     @ObservedObject var authManager: SessionAuthManager
     @ObservedObject var codexAuthManager: CodexAuthManager
+    @ObservedObject var kimiAuthManager: KimiAuthManager
     @ObservedObject var historyService: QuotaHistoryService
     @ObservedObject var copilotHistoryService: CopilotHistoryService
 
@@ -100,7 +101,7 @@ struct SettingsView: View {
     private func contentForSection(_ section: SettingsSection) -> some View {
         switch section {
         case .accounts:
-            AccountsSettingsSection(authManager: authManager, codexAuthManager: codexAuthManager)
+            AccountsSettingsSection(authManager: authManager, codexAuthManager: codexAuthManager, kimiAuthManager: kimiAuthManager)
         case .display:
             DisplaySettingsSection()
         case .notifications:
@@ -122,17 +123,17 @@ struct SettingsView: View {
 struct AccountsSettingsSection: View {
     @ObservedObject var authManager: SessionAuthManager
     @ObservedObject var codexAuthManager: CodexAuthManager
+    @ObservedObject var kimiAuthManager: KimiAuthManager
 
     @AppStorage("hidePersonalInfo") private var hidePersonalInfo: Bool = false
 
     @State private var showSignOutConfirmation = false
     @State private var glmKeyInput: String = ""
     @State private var glmKeySaved: Bool = false
-    @State private var kimiKeyInput: String = ""
-    @State private var kimiKeySaved: Bool = false
     @State private var minimaxKeyInput: String = ""
     @State private var minimaxKeySaved: Bool = false
     @State private var showCodexSignOutConfirmation = false
+    @State private var showKimiSignOutConfirmation = false
 
     var body: some View {
         settingsSectionCard {
@@ -241,49 +242,51 @@ struct AccountsSettingsSection: View {
                 Divider().opacity(0.3)
 
                 HStack(spacing: 6) {
-                    Image(systemName: "key.fill")
+                    Image(systemName: "person.crop.circle.fill")
                         .font(.system(size: 11))
                         .foregroundColor(.secondary)
-                    Text("Kimi API Key")
+                    Text("Kimi")
                         .font(.system(size: 11, weight: .medium))
                         .foregroundColor(.secondary)
                 }
 
-                if KimiService.keyIsFromEnvironment {
-                    Text("Using KIMI_API_KEY from environment")
-                        .font(.system(size: 11))
-                        .foregroundColor(.secondary)
-                        .italic()
-                } else if APIKeyKeychainHelper.kimi.readAPIKey() != nil && kimiKeyInput.isEmpty {
+                if kimiAuthManager.isAuthenticated {
                     HStack {
-                        Text("••••••••")
+                        Image(systemName: "checkmark.circle.fill")
+                            .foregroundColor(.green)
                             .font(.system(size: 12))
-                            .foregroundColor(.secondary)
+                        VStack(alignment: .leading, spacing: 1) {
+                            Text("Signed in")
+                                .font(.system(size: 12))
+                                .foregroundColor(.white)
+                            if let userName = PersonalInfoRedactor.conditionalRedact(kimiAuthManager.userName, hideInfo: hidePersonalInfo) {
+                                Text(userName)
+                                    .font(.system(size: 10))
+                                    .foregroundColor(.secondary)
+                            }
+                        }
                         Spacer()
-                        Button("Clear") {
-                            APIKeyKeychainHelper.kimi.deleteAPIKey()
-                            kimiKeySaved = false
+                        Button("Sign Out") {
+                            showKimiSignOutConfirmation = true
                         }
                         .font(.system(size: 11))
                         .buttonStyle(.plain)
                         .foregroundColor(.red)
                     }
                 } else {
-                    HStack {
-                        SecureField("Paste API key…", text: $kimiKeyInput)
-                            .font(.system(size: 12))
-                            .textFieldStyle(.plain)
-                        if !kimiKeyInput.isEmpty {
-                            Button(kimiKeySaved ? "Saved ✓" : "Save") {
-                                APIKeyKeychainHelper.kimi.saveAPIKey(kimiKeyInput)
-                                kimiKeySaved = true
-                                kimiKeyInput = ""
-                            }
-                            .font(.system(size: 11))
-                            .buttonStyle(.plain)
-                            .foregroundColor(kimiKeySaved ? .green : .accentColor)
-                        }
+                    Button("Sign in with Kimi") {
+                        kimiAuthManager.openLoginWindow()
                     }
+                    .font(.system(size: 12))
+                    .buttonStyle(.plain)
+                    .foregroundColor(.accentColor)
+                    .disabled(kimiAuthManager.isLoggingIn)
+                }
+
+                if let error = kimiAuthManager.lastError {
+                    Text(error)
+                        .font(.system(size: 10))
+                        .foregroundColor(.red)
                 }
 
                 Divider().opacity(0.3)
@@ -393,6 +396,14 @@ struct AccountsSettingsSection: View {
         } message: {
             Text("You'll need to sign in again to view usage data.")
         }
+        .confirmationDialog("Sign out of Kimi?", isPresented: $showKimiSignOutConfirmation) {
+            Button("Sign Out", role: .destructive) {
+                kimiAuthManager.signOut()
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("You'll need to sign in again to view Kimi usage data.")
+        }
         .confirmationDialog("Sign out of Codex?", isPresented: $showCodexSignOutConfirmation) {
             Button("Sign Out", role: .destructive) {
                 codexAuthManager.signOut()
@@ -421,6 +432,7 @@ struct DisplaySettingsSection: View {
     @AppStorage("refreshGLM") private var refreshGLM: Double = 120
     @AppStorage("refreshKimi") private var refreshKimi: Double = 300
     @AppStorage("refreshCodex") private var refreshCodex: Double = 300
+    @AppStorage("refreshMinimax") private var refreshMinimax: Double = 120
     @AppStorage("providerTabOrder") private var providerTabOrder: String = Tab.defaultOrderString
     @AppStorage("loadingPattern") private var loadingPattern: String = LoadingPattern.fade.rawValue
 
@@ -527,6 +539,7 @@ struct DisplaySettingsSection: View {
                     providerRefreshRow("GLM", value: $refreshGLM)
                     providerRefreshRow("Kimi", value: $refreshKimi)
                     providerRefreshRow("Codex", value: $refreshCodex)
+                    providerRefreshRow("MiniMax", value: $refreshMinimax)
                 }
 
                 Divider().opacity(0.3)
@@ -744,8 +757,8 @@ struct ShortcutsSettingsSection: View {
             VStack(alignment: .leading, spacing: 4) {
                 shortcutRow("⌃⌥A", "Toggle menu bar popover")
                 shortcutRow("⌘R", "Refresh all providers")
-                shortcutRow("⌘1–5", "Jump to provider tab")
-                shortcutRow("⌘6", "Open Settings")
+                shortcutRow("⌘1–6", "Jump to provider tab")
+                shortcutRow("⌘7", "Open Settings")
                 shortcutRow("⌘,", "Open Settings")
                 shortcutRow("← →", "Navigate between tabs")
                 shortcutRow("Esc", "Return from Settings")
@@ -793,6 +806,7 @@ struct GeneralSettingsSection: View {
     @AppStorage("refreshGLM") private var refreshGLM: Double = 120
     @AppStorage("refreshKimi") private var refreshKimi: Double = 300
     @AppStorage("refreshCodex") private var refreshCodex: Double = 300
+    @AppStorage("refreshMinimax") private var refreshMinimax: Double = 120
     @AppStorage("providerTabOrder") private var providerTabOrder: String = Tab.defaultOrderString
     @AppStorage("checkProviderStatus") private var checkProviderStatus: Bool = true
     @AppStorage("loadingPattern") private var loadingPattern: String = LoadingPattern.fade.rawValue
@@ -889,6 +903,7 @@ struct GeneralSettingsSection: View {
                     refreshGLM = 120
                     refreshKimi = 300
                     refreshCodex = 300
+                    refreshMinimax = 120
                     hidePersonalInfo = false
                     providerTabOrder = Tab.defaultOrderString
                     loadingPattern = LoadingPattern.fade.rawValue
@@ -1040,6 +1055,7 @@ struct DeveloperSettingsSection: View {
                     serviceStatusRow("GLM", date: SharedDefaults.loadGLM()?.fetchedAt)
                     serviceStatusRow("Kimi", date: SharedDefaults.loadKimi()?.fetchedAt)
                     serviceStatusRow("Codex", date: SharedDefaults.loadCodex()?.fetchedAt)
+                    serviceStatusRow("MiniMax", date: SharedDefaults.loadMinimax()?.fetchedAt)
                 }
             }
 
@@ -1084,6 +1100,7 @@ struct DeveloperSettingsSection: View {
                             suite?.removeObject(forKey: "glmData")
                             suite?.removeObject(forKey: "kimiData")
                             suite?.removeObject(forKey: "codexData")
+                            suite?.removeObject(forKey: "minimaxData")
                         }
                         Button("Cancel", role: .cancel) {}
                     } message: {

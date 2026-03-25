@@ -3,12 +3,12 @@ import Foundation
 struct KimiHistoryDataPoint: Codable, Identifiable {
     let id: UUID
     let timestamp: Date
-    let totalBalance: Double
+    let utilization: Int
 
-    init(totalBalance: Double) {
+    init(utilization: Int) {
         self.id = UUID()
         self.timestamp = Date()
-        self.totalBalance = totalBalance
+        self.utilization = utilization
     }
 }
 
