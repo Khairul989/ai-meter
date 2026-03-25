@@ -134,6 +134,8 @@ final class KimiLoginCoordinator: NSObject, ObservableObject, WKNavigationDelega
     let webView: WKWebView
     private weak var authManager: KimiAuthManager?
     private var cookieTimer: Timer?
+    private var lastValidatedJWT: String?
+    private var isValidatingJWT = false
     private var progressObservation: NSKeyValueObservation?
     private var popupWebView: WKWebView?
     private var popupWindow: NSWindow?
@@ -169,6 +171,8 @@ final class KimiLoginCoordinator: NSObject, ObservableObject, WKNavigationDelega
     func cleanup() {
         cookieTimer?.invalidate()
         cookieTimer = nil
+        lastValidatedJWT = nil
+        isValidatingJWT = false
         progressObservation = nil
         popupWindow?.close()
         popupWindow = nil
@@ -193,6 +197,8 @@ final class KimiLoginCoordinator: NSObject, ObservableObject, WKNavigationDelega
                 let rawJwt = cookie.value
                 let jwt = rawJwt.removingPercentEncoding ?? rawJwt
                 DispatchQueue.main.async {
+                    if self.isValidatingJWT { return }
+                    if self.lastValidatedJWT == jwt { return }
                     self.cookieTimer?.invalidate()
                     self.cookieTimer = nil
                     self.validateJWT(jwt)
@@ -202,6 +208,8 @@ final class KimiLoginCoordinator: NSObject, ObservableObject, WKNavigationDelega
     }
 
     private func validateJWT(_ jwt: String) {
+        isValidatingJWT = true
+        lastValidatedJWT = jwt
         loginState = .validating
 
         Task { @MainActor in
@@ -221,8 +229,8 @@ final class KimiLoginCoordinator: NSObject, ObservableObject, WKNavigationDelega
                 let (data, response) = try await session.data(for: request)
 
                 if let http = response as? HTTPURLResponse, http.statusCode != 200 {
-                    let errorBody = String(data: data, encoding: .utf8) ?? "Unknown error"
-                    loginState = .failed(message: "HTTP \(http.statusCode): \(errorBody)")
+                    loginState = .waitingForLogin
+                    isValidatingJWT = false
                     startCookieMonitoring()
                     return
                 }
@@ -237,15 +245,18 @@ final class KimiLoginCoordinator: NSObject, ObservableObject, WKNavigationDelega
                         userName: nil,
                         planName: nil
                     )
+                    isValidatingJWT = false
                     loginState = .success(name: "Kimi User")
                     try? await Task.sleep(for: .milliseconds(1500))
                     KimiLoginWindowManager.shared.closeLoginWindow()
                 } else {
-                    loginState = .failed(message: "Invalid response format")
+                    loginState = .waitingForLogin
+                    isValidatingJWT = false
                     startCookieMonitoring()
                 }
             } catch {
-                loginState = .failed(message: error.localizedDescription)
+                loginState = .waitingForLogin
+                isValidatingJWT = false
                 startCookieMonitoring()
             }
         }
