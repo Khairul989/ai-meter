@@ -28,7 +28,7 @@ struct KimiTabView: View {
                 .foregroundColor(.secondary)
                 .multilineTextAlignment(.center)
 
-            Button("Sign in with Browser") {
+            Button("Sign in with Kimi") {
                 authManager.openLoginWindow()
             }
             .font(.system(size: 13, weight: .medium))
