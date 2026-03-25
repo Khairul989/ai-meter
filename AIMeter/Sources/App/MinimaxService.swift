@@ -57,17 +57,20 @@ final class MinimaxService: HTTPPollingService {
         let models: [MinimaxModelQuota] = decoded.model_remains
             .filter { $0.current_interval_total_count > 0 || $0.current_weekly_total_count > 0 }
             .map { remain in
-                let intervalPercent = percentOf(used: remain.current_interval_usage_count, total: remain.current_interval_total_count)
-                let weeklyPercent = percentOf(used: remain.current_weekly_usage_count, total: remain.current_weekly_total_count)
+                // API fields represent REMAINING counts, so used = total - remaining
+                let intervalUsed = remain.current_interval_total_count - remain.current_interval_usage_count
+                let weeklyUsed = remain.current_weekly_total_count - remain.current_weekly_usage_count
+                let intervalPercent = percentOf(used: intervalUsed, total: remain.current_interval_total_count)
+                let weeklyPercent = percentOf(used: weeklyUsed, total: remain.current_weekly_total_count)
                 let resetsAt = remain.end_time > 0 ? Date(timeIntervalSince1970: Double(remain.end_time) / 1000.0) : nil
                 let weeklyResetsAt = remain.weekly_end_time > 0 ? Date(timeIntervalSince1970: Double(remain.weekly_end_time) / 1000.0) : nil
                 return MinimaxModelQuota(
                     modelName: remain.model_name,
                     intervalPercent: intervalPercent,
                     weeklyPercent: weeklyPercent,
-                    intervalUsed: remain.current_interval_usage_count,
+                    intervalUsed: intervalUsed,
                     intervalTotal: remain.current_interval_total_count,
-                    weeklyUsed: remain.current_weekly_usage_count,
+                    weeklyUsed: weeklyUsed,
                     weeklyTotal: remain.current_weekly_total_count,
                     resetsAt: resetsAt,
                     weeklyResetsAt: weeklyResetsAt
