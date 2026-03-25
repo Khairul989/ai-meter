@@ -47,57 +47,55 @@ struct KimiTabView: View {
     }
 
     private var usageContentView: some View {
-        ScrollView {
-            VStack(spacing: 12) {
-                if case .fetchFailed = kimiService.error {
-                    ErrorBannerView(message: "Failed to fetch usage") {
-                        Task { await kimiService.fetch() }
-                    }
-                }
-                if case .rateLimited = kimiService.error {
-                    ErrorBannerView(message: "Rate limited — retrying", retryDate: kimiService.retryDate)
-                }
-
-                // Main usage card - Weekly
-                UsageCardView(
-                    icon: "chart.bar.fill",
-                    title: "Weekly",
-                    subtitle: "Total usage",
-                    percentage: kimiService.kimiData.utilizationPercent,
-                    resetText: kimiService.kimiData.resetTimeFormatted,
-                    accentColor: ProviderTheme.kimi.accentColor,
-                    isPrimary: true
-                )
-
-                // Rate limit windows
-                ForEach(kimiService.kimiData.limits.indices, id: \.self) { index in
-                    let limit = kimiService.kimiData.limits[index]
-                    let percentage = limit.detail.limit > 0 ? Int((Double(limit.detail.used) / Double(limit.detail.limit)) * 100) : 0
-                    UsageCardView(
-                        icon: "clock.fill",
-                        title: windowTitle(for: limit.window.duration),
-                        subtitle: "\(limit.detail.remaining) remaining",
-                        percentage: percentage,
-                        resetText: limit.detail.resetTime.map { formatResetTime($0) },
-                        accentColor: ProviderTheme.kimi.accentColor
-                    )
-                }
-
-                // History chart
-                if !historyService.history.dataPoints.isEmpty {
-                    UsageHistoryChartView(
-                        title: "Usage History",
-                        dataPoints: historyService.history.dataPoints.map {
-                            (date: $0.timestamp, value: Double($0.utilization), label: shortDateLabel($0.timestamp))
-                        },
-                        valueFormatter: { "\(Int($0))%" },
-                        accentColor: ProviderTheme.kimi.accentColor
-                    )
+        VStack(spacing: 12) {
+            if case .fetchFailed = kimiService.error {
+                ErrorBannerView(message: "Failed to fetch usage") {
+                    Task { await kimiService.fetch() }
                 }
             }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 8)
+            if case .rateLimited = kimiService.error {
+                ErrorBannerView(message: "Rate limited — retrying", retryDate: kimiService.retryDate)
+            }
+
+            // Main usage card - Weekly
+            UsageCardView(
+                icon: "chart.bar.fill",
+                title: "Weekly",
+                subtitle: "Total usage",
+                percentage: kimiService.kimiData.utilizationPercent,
+                resetText: kimiService.kimiData.resetTimeFormatted,
+                accentColor: ProviderTheme.kimi.accentColor,
+                isPrimary: true
+            )
+
+            // Rate limit windows
+            ForEach(kimiService.kimiData.limits.indices, id: \.self) { index in
+                let limit = kimiService.kimiData.limits[index]
+                let percentage = limit.detail.limit > 0 ? Int((Double(limit.detail.used) / Double(limit.detail.limit)) * 100) : 0
+                UsageCardView(
+                    icon: "clock.fill",
+                    title: windowTitle(for: limit.window.duration),
+                    subtitle: "\(limit.detail.remaining) remaining",
+                    percentage: percentage,
+                    resetText: limit.detail.resetTime.map { formatResetTime($0) },
+                    accentColor: ProviderTheme.kimi.accentColor
+                )
+            }
+
+            // History chart
+            if !historyService.history.dataPoints.isEmpty {
+                UsageHistoryChartView(
+                    title: "Usage History",
+                    dataPoints: historyService.history.dataPoints.map {
+                        (date: $0.timestamp, value: Double($0.utilization), label: shortDateLabel($0.timestamp))
+                    },
+                    valueFormatter: { "\(Int($0))%" },
+                    accentColor: ProviderTheme.kimi.accentColor
+                )
+            }
         }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
     }
 
     private func windowTitle(for duration: Int) -> String {
