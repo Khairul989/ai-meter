@@ -25,5 +25,11 @@ struct MinimaxUsageData: Codable, Equatable {
         models.map(\.weeklyPercent).max() ?? 0
     }
 
+    var nextResetAt: Date? {
+        guard let topModel = models.max(by: { $0.intervalPercent < $1.intervalPercent }),
+              let resetsAt = topModel.resetsAt else { return nil }
+        return resetsAt
+    }
+
     static let empty = MinimaxUsageData(models: [], fetchedAt: .distantPast)
 }

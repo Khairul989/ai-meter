@@ -331,8 +331,27 @@ struct MenuBarLabel: View {
             text = "\(codexData.primaryPercent)%"
             utilization = codexData.highestUtilization
         case .minimax:
-            text = "\(minimaxData.highestIntervalPercent)%"
+            let pct = "\(minimaxData.highestIntervalPercent)%"
             utilization = minimaxData.highestIntervalPercent
+            switch displayMode {
+            case .classic:
+                let base = "5h \(pct)"
+                if let resetsAt = minimaxData.nextResetAt {
+                    let fmt = DateFormatter()
+                    fmt.dateFormat = "h:mma"
+                    fmt.amSymbol = "am"
+                    fmt.pmSymbol = "pm"
+                    text = "\(base) · \(fmt.string(from: resetsAt))"
+                } else {
+                    text = base
+                }
+            case .percent:
+                text = pct
+            case .pace:
+                text = pct
+            case .both:
+                text = pct
+            }
         }
 
         return LabelInfo(text: text, utilization: utilization)

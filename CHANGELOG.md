@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.35.2] - 2026-03-25
+
+### Added
+
+- MiniMax menu bar now shows reset time in classic display mode (e.g. `5h 45% · 3:30pm`)
+
 ## [1.34.2] - 2026-03-22
 
 ### Fixed
