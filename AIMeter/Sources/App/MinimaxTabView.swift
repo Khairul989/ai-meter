@@ -39,7 +39,7 @@ struct MinimaxTabView: View {
                         title: "Interval Quota",
                         subtitle: "\(model.intervalUsed)/\(model.intervalTotal) used",
                         percentage: model.intervalPercent,
-                        resetText: model.resetsAt.map { shortDateLabel($0) },
+                        resetText: ResetTimeFormatter.format(model.resetsAt, style: .countdown),
                         accentColor: ProviderTheme.minimax.accentColor
                     )
 
@@ -48,7 +48,7 @@ struct MinimaxTabView: View {
                         title: "Weekly Quota",
                         subtitle: "\(model.weeklyUsed)/\(model.weeklyTotal) used",
                         percentage: model.weeklyPercent,
-                        resetText: model.weeklyResetsAt.map { shortDateLabel($0) },
+                        resetText: ResetTimeFormatter.format(model.weeklyResetsAt, style: .dayTime),
                         accentColor: ProviderTheme.minimax.accentColor
                     )
                 }
