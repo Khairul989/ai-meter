@@ -83,14 +83,13 @@ struct ClaudeTabView: View {
                             .clipShape(RoundedRectangle(cornerRadius: 4))
                     }
                     TimelineView(.periodic(from: .now, by: 60)) { context in
-                        if PeakHoursHelper.isPromotionActive(now: context.date) {
-                            let doubled = PeakHoursHelper.isDoubledUsage(now: context.date)
-                            Text(doubled ? "2× Limit" : "Peak Hours")
+                        if PeakHoursHelper.isPeakHours(now: context.date) {
+                            Text("Peak")
                                 .font(.system(size: 10, weight: .semibold))
-                                .foregroundColor(doubled ? .green : .orange)
+                                .foregroundColor(.orange)
                                 .padding(.horizontal, 6)
                                 .padding(.vertical, 2)
-                                .background((doubled ? Color.green : Color.orange).opacity(0.15))
+                                .background(Color.orange.opacity(0.15))
                                 .clipShape(RoundedRectangle(cornerRadius: 4))
                         }
                     }
@@ -121,7 +120,7 @@ struct ClaudeTabView: View {
                         UsageCardView(
                             icon: "timer",
                             title: "Session",
-                            subtitle: PeakHoursHelper.isDoubledUsage(now: context.date) ? "5h window · 2× limit" : "5h sliding window",
+                            subtitle: "5h sliding window",
                             percentage: data.fiveHour.utilization,
                             resetText: ResetTimeFormatter.format(
                                 data.fiveHour.resetsAt,
