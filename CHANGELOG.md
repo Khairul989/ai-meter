@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - Claude peak hours badge now reflects new schedule: weekdays 5am–11am PT (was 8am–2pm ET promotion)
+- Claude peak hours corrected to 1pm–7pm GMT (was hardcoded to PT), now shows correct time for all user timezone settings (MYT, PST, EST, GMT, CET, JST)
 
 ## [1.35.3] - 2026-03-29
 
