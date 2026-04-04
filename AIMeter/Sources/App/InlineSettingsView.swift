@@ -7,6 +7,7 @@ struct InlineSettingsView: View {
     @ObservedObject var updaterManager: UpdaterManager
     @ObservedObject var authManager: SessionAuthManager
     @ObservedObject var codexAuthManager: CodexAuthManager
+    @ObservedObject var kimiAuthManager: KimiAuthManager
     @Binding var selectedTab: Tab
     @EnvironmentObject var historyService: QuotaHistoryService
     @EnvironmentObject var copilotHistoryService: CopilotHistoryService
@@ -19,6 +20,7 @@ struct InlineSettingsView: View {
                     updaterManager: updaterManager,
                     authManager: authManager,
                     codexAuthManager: codexAuthManager,
+                    kimiAuthManager: kimiAuthManager,
                     historyService: historyService,
                     copilotHistoryService: copilotHistoryService
                 )

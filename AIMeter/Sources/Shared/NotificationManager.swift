@@ -250,13 +250,12 @@ final class NotificationManager {
     }
 
     static func metrics(from data: KimiUsageData) -> [MetricSnapshot] {
-        // Kimi reports balance (CNY), not utilization %.
-        // We surface this as an informational metric only (0% utilization so no threshold alerts).
+        // Kimi now reports usage % via GetUsages endpoint
         return [MetricSnapshot(
-            key: "kimi.balance",
-            label: "Kimi Balance",
-            utilization: 0,
-            detail: String(format: "¥%.4f available", data.totalBalance)
+            key: "kimi.usage",
+            label: "Kimi Usage",
+            utilization: data.utilizationPercent,
+            detail: "\(data.detail.used) / \(data.detail.limit) requests"
         )]
     }
 }

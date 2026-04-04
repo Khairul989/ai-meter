@@ -27,6 +27,7 @@ enum AppConstants {
         static let claudeBaseURL = "https://claude.ai"
         static let glmQuotaURL = "https://api.z.ai/api/monitor/usage/quota/limit"
         static let kimiBalanceURL = "https://api.moonshot.cn/v1/users/me/balance"
+        static let kimiUsagesURL = "https://www.kimi.com/apiv2/kimi.gateway.billing.v1.BillingService/GetUsages"
         static let copilotUserURL = "https://api.github.com/copilot_internal/user"
         static let codexUsageURL = "https://chatgpt.com/backend-api/wham/usage"
         static let codexSessionURL = "https://chatgpt.com/api/auth/session"

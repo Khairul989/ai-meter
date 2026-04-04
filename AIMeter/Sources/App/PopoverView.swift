@@ -145,7 +145,7 @@ struct SummaryStripView: View {
     let claudeUtilization: Int?
     let copilotUtilization: Int?
     let glmUtilization: Int?
-    let kimiBalance: Double?
+    let kimiUtilization: Int?
     let codexUtilization: Int?
     let minimaxUtilization: Int?
 
@@ -160,8 +160,8 @@ struct SummaryStripView: View {
             if let util = glmUtilization {
                 pill(tab: .glm, theme: .glm, text: "\(util)%", utilization: util)
             }
-            if let balance = kimiBalance {
-                pill(tab: .kimi, theme: .kimi, text: String(format: "¥%.2f", balance), utilization: balance > 0 ? 10 : 100)
+            if let util = kimiUtilization {
+                pill(tab: .kimi, theme: .kimi, text: "\(util)%", utilization: util)
             }
             if let util = codexUtilization {
                 pill(tab: .codex, theme: .codex, text: "\(util)%", utilization: util)
@@ -210,6 +210,7 @@ struct PopoverView: View {
     @EnvironmentObject var kimiService: KimiService
     @EnvironmentObject var codexService: CodexService
     @EnvironmentObject var codexAuthManager: CodexAuthManager
+    @EnvironmentObject var kimiAuthManager: KimiAuthManager
     @EnvironmentObject var minimaxService: MinimaxService
     @EnvironmentObject var minimaxHistoryService: MinimaxHistoryService
     @EnvironmentObject var updaterManager: UpdaterManager
@@ -247,6 +248,7 @@ struct PopoverView: View {
             updaterManager: updaterManager,
             authManager: authManager,
             codexAuthManager: codexAuthManager,
+            kimiAuthManager: kimiAuthManager,
             historyService: historyService,
             copilotHistoryService: copilotHistoryService
         )
@@ -318,7 +320,7 @@ struct PopoverView: View {
                     claudeUtilization: authManager.isAuthenticated ? service.usageData.fiveHour.utilization : nil,
                     copilotUtilization: copilotService.error != .noToken ? copilotService.copilotData.premiumInteractions.utilization : nil,
                     glmUtilization: glmService.error != .noKey ? glmService.glmData.tokensPercent : nil,
-                    kimiBalance: kimiService.error != .noKey ? kimiService.kimiData.totalBalance : nil,
+                    kimiUtilization: kimiAuthManager.isAuthenticated ? kimiService.kimiData.utilizationPercent : nil,
                     codexUtilization: codexAuthManager.isAuthenticated ? codexService.codexData.primaryPercent : nil,
                     minimaxUtilization: minimaxService.error != .noKey ? minimaxService.minimaxData.highestIntervalPercent : nil
                 )
@@ -341,9 +343,7 @@ struct PopoverView: View {
                         Task { await glmService.fetch() }
                     })
                 case .kimi:
-                    KimiTabView(kimiService: kimiService, historyService: kimiHistoryService, onKeySaved: {
-                        Task { await kimiService.fetch() }
-                    })
+                    KimiTabView(kimiService: kimiService, historyService: kimiHistoryService, authManager: kimiAuthManager)
                 case .codex:
                     CodexTabView(codexService: codexService, codexAuthManager: codexAuthManager, historyService: codexHistoryService, timeZone: configuredTimeZone, providerStatus: providerStatusService.statuses["Codex"])
                 case .minimax:
