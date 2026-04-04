@@ -97,11 +97,25 @@ enum APIClient {
             sevenDaySonnet = nil
         }
 
+        // Parse extra_usage inline if present and enabled; fallback path will fill this if absent
+        let extraCredits: ExtraCredits?
+        if let extraDict = json["extra_usage"] as? [String: Any],
+           let isEnabled = extraDict["is_enabled"] as? Bool,
+           isEnabled,
+           let monthlyLimit = extraDict["monthly_limit"] as? Double,
+           let usedCredits = extraDict["used_credits"] as? Double {
+            let utilization = extraDict["utilization"] as? Double ?? 0
+            // API returns cents — convert to dollars
+            extraCredits = ExtraCredits(utilization: Int(utilization), used: usedCredits / 100, limit: monthlyLimit / 100)
+        } else {
+            extraCredits = nil
+        }
+
         return UsageData(
             fiveHour: fiveHour,
             sevenDay: sevenDay ?? RateLimit(utilization: 0, resetsAt: nil),
             sevenDaySonnet: sevenDaySonnet,
-            extraCredits: nil, // fetched separately
+            extraCredits: extraCredits,
             planName: nil,
             fetchedAt: Date()
         )
@@ -133,8 +147,9 @@ enum APIClient {
             return (nil, planName)
         }
         let balanceCents = json["balance_cents"] as? Int ?? 0
-        let limit = Double(limitCents)  // keep in cents, convert in UI
-        let used = Double(balanceCents)
+        // Convert cents to dollars to match the inline extra_usage unit
+        let limit = Double(limitCents) / 100
+        let used = Double(balanceCents) / 100
         let utilization = limit > 0 ? Int((used / limit) * 100) : 0
 
         return (ExtraCredits(utilization: utilization, used: used, limit: limit), planName)

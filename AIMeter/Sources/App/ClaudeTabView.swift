@@ -120,7 +120,7 @@ struct ClaudeTabView: View {
                         UsageCardView(
                             icon: "timer",
                             title: "Session",
-                            subtitle: "5h sliding window",
+                            subtitle: "5h Quota",
                             percentage: data.fiveHour.utilization,
                             resetText: ResetTimeFormatter.format(
                                 data.fiveHour.resetsAt,
@@ -144,7 +144,7 @@ struct ClaudeTabView: View {
                 UsageCardView(
                     icon: "chart.bar.fill",
                     title: "Weekly",
-                    subtitle: "Opus + Sonnet + Haiku",
+                    subtitle: "All models",
                     percentage: data.sevenDay.utilization,
                     resetText: ResetTimeFormatter.format(data.sevenDay.resetsAt, style: .dayTime, timeZone: timeZone)
                 )
@@ -161,7 +161,7 @@ struct ClaudeTabView: View {
                     UsageCardView(
                         icon: "creditcard.fill",
                         title: "Extra Credits",
-                        subtitle: String(format: "$%.2f / $%.2f", credits.used / 100, credits.limit / 100),
+                        subtitle: String(format: "$%.2f / $%.2f", credits.used, credits.limit),
                         percentage: credits.utilization,
                         resetText: nil,
                         isCompact: true

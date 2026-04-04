@@ -27,3 +27,4 @@ scripts/sparkle-tools/
 *.pem
 *.key
 *.p12
+.dual-graph/

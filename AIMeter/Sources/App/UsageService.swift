@@ -49,13 +49,14 @@ final class UsageService: PollingServiceBase {
             var data = try await mainUsage
             let extra = await extraUsage
 
-            // Merge extra usage and plan name
-            if extra.credits != nil || extra.planName != nil {
+            // Merge plan name; use inline extra_usage if already parsed, otherwise fall back to overage endpoint credits
+            let mergedCredits = data.extraCredits ?? extra.credits
+            if mergedCredits != nil || extra.planName != nil {
                 data = UsageData(
                     fiveHour: data.fiveHour,
                     sevenDay: data.sevenDay,
                     sevenDaySonnet: data.sevenDaySonnet,
-                    extraCredits: extra.credits,
+                    extraCredits: mergedCredits,
                     planName: extra.planName,
                     fetchedAt: data.fetchedAt
                 )
