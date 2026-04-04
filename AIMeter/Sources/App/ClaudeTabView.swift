@@ -163,8 +163,7 @@ struct ClaudeTabView: View {
                         title: "Extra Credits",
                         subtitle: String(format: "$%.2f / $%.2f", credits.used, credits.limit),
                         percentage: credits.utilization,
-                        resetText: nil,
-                        isCompact: true
+                        resetText: nil
                     )
                 }
 
