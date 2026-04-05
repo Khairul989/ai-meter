@@ -54,8 +54,13 @@ Updates are checked automatically on launch. You can also check manually via Set
 ## Build from Source
 
 1. Clone the repo
-2. `cd AIMeter && xcodegen generate`
-3. Open `AIMeter.xcodeproj` in Xcode and run
+2. Create a self-signed code signing certificate named `AIMeter Dev`:
+   - Open **Keychain Access** → Certificate Assistant → **Create a Certificate**
+   - Name: `AIMeter Dev`, Certificate Type: **Code Signing**
+3. `cd AIMeter && xcodegen generate`
+4. Open `AIMeter.xcodeproj` in Xcode and run
+
+> **Note:** The certificate name must match `CODE_SIGN_IDENTITY` in `project.yml`. If you use a different name, update the value in `project.yml` accordingly. Without a valid code signing certificate, keychain operations may trigger repeated macOS permission dialogs.
 
 ---
 

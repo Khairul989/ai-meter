@@ -84,6 +84,18 @@ struct AIMeterApp: App {
     @State private var isRefreshing = false
     @State private var recapService: RecapService?
     @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding = false
+    @AppStorage("keychainUpgradedV2") private var keychainUpgraded = false
+
+    private func showKeychainUpgradeAlert() {
+        DispatchQueue.main.async {
+            let alert = NSAlert()
+            alert.messageText = "Credential Storage Upgraded"
+            alert.informativeText = "AIMeter has upgraded its secure storage to eliminate repeated keychain permission dialogs.\n\nPlease re-enter your API keys and sign in again to your accounts. This is a one-time change — you won't be asked again."
+            alert.alertStyle = .informational
+            alert.addButton(withTitle: "OK")
+            alert.runModal()
+        }
+    }
 
     private func interval(for provider: MenuBarProvider) -> Double {
         guard perProviderRefresh else { return refreshInterval }
@@ -156,6 +168,13 @@ struct AIMeterApp: App {
                     .task {
                         UNUserNotificationCenter.current().delegate = NotificationDelegate.shared
                         NotificationManager.shared.requestPermission()
+                        if !keychainUpgraded {
+                            keychainUpgraded = true
+                            if hasCompletedOnboarding {
+                                showKeychainUpgradeAlert()
+                            }
+                        }
+
                         service.start(interval: interval(for: .claude), authManager: authManager, historyService: historyService)
                         copilotService.start(interval: interval(for: .copilot), historyService: copilotHistoryService)
                         glmService.start(interval: interval(for: .glm), historyService: glmHistoryService)

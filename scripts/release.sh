@@ -61,6 +61,9 @@ xcodebuild archive \
 echo "==> Exporting .app from archive..."
 cp -R "$ARCHIVE_PATH/Products/Applications/AIMeter.app" "$APP_PATH"
 
+echo "==> Re-signing with AIMeter Dev..."
+codesign --force --deep --sign "AIMeter Dev" "$APP_PATH"
+
 echo "==> Creating zip..."
 cd "$BUILD_DIR"
 ditto -c -k --keepParent "AIMeter.app" "$(basename "$ZIP_PATH")"

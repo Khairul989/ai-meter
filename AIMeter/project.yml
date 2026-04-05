@@ -52,20 +52,11 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.khairul.aimeter
-        CODE_SIGN_ENTITLEMENTS: Resources/AIMeter.entitlements
-        CODE_SIGN_IDENTITY: "-"
+        CODE_SIGN_IDENTITY: "AIMeter Dev"
         CODE_SIGN_STYLE: Manual
         CODE_SIGNING_REQUIRED: "NO"
-        CODE_SIGNING_ALLOWED: "NO"
+        CODE_SIGNING_ALLOWED: "YES"
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
-    entitlements:
-      path: Resources/AIMeter.entitlements
-      properties:
-        com.apple.security.app-sandbox: false
-        com.apple.security.application-groups:
-          - group.com.khairul.aimeter
-        keychain-access-groups:
-          - $(AppIdentifierPrefix)com.khairul.aimeter
     dependencies:
       - package: Sparkle
       - package: SwiftNIO
@@ -94,17 +85,10 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.khairul.aimeter.widget
-        CODE_SIGN_ENTITLEMENTS: Resources/AIMeterWidget.entitlements
-        CODE_SIGN_IDENTITY: "-"
+        CODE_SIGN_IDENTITY: "AIMeter Dev"
         CODE_SIGN_STYLE: Manual
         CODE_SIGNING_REQUIRED: "NO"
-        CODE_SIGNING_ALLOWED: "NO"
-    entitlements:
-      path: Resources/AIMeterWidget.entitlements
-      properties:
-        com.apple.security.app-sandbox: false
-        com.apple.security.application-groups:
-          - group.com.khairul.aimeter
+        CODE_SIGNING_ALLOWED: "YES"
     dependencies:
       - target: AIMeter
         embed: false
