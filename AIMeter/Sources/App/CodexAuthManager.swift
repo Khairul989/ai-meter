@@ -3,17 +3,31 @@ import WebKit
 import AppKit
 import SwiftUI
 
+// MARK: - CodexAccount
+
+struct CodexAccount: Identifiable, Equatable {
+    let id: String        // email (unique identifier)
+    let accessToken: String
+    let email: String
+    let planType: String?
+}
+
 // MARK: - CodexAuthManager
 
 @MainActor
 final class CodexAuthManager: ObservableObject {
-    @Published var isAuthenticated = false
+    @Published var accounts: [CodexAccount] = []
+    @Published var activeAccountId: String?
     @Published var isLoggingIn = false
     @Published var lastError: String?
-    @Published var email: String?
-    @Published var planType: String?
 
-    private(set) var accessToken: String?
+    var activeAccount: CodexAccount? {
+        accounts.first { $0.id == activeAccountId }
+    }
+    var isAuthenticated: Bool { activeAccount != nil }
+    var accessToken: String? { activeAccount?.accessToken }
+    var email: String? { activeAccount?.email }
+    var planType: String? { activeAccount?.planType }
 
     init() {
         loadCredentials()
@@ -22,30 +36,85 @@ final class CodexAuthManager: ObservableObject {
     // MARK: - Credential Storage
 
     private func loadCredentials() {
-        accessToken = CodexSessionKeychain.read(account: .accessToken)
-        email = CodexSessionKeychain.read(account: .email)
-        planType = CodexSessionKeychain.read(account: .planType)
-        isAuthenticated = accessToken != nil
+        // Migration: check for legacy un-namespaced keys
+        if let legacyToken = CodexSessionKeychain.read(account: .accessToken) {
+            let legacyEmail = CodexSessionKeychain.read(account: .email) ?? "Unknown"
+            let legacyPlan = CodexSessionKeychain.read(account: .planType)
+            // Save to namespaced keychain
+            CodexSessionKeychain.save(account: .accessToken, accountId: legacyEmail, value: legacyToken)
+            if let e = CodexSessionKeychain.read(account: .email) {
+                CodexSessionKeychain.save(account: .email, accountId: legacyEmail, value: e)
+            }
+            if let p = legacyPlan {
+                CodexSessionKeychain.save(account: .planType, accountId: legacyEmail, value: p)
+            }
+            CodexSessionKeychain.addAccountId(legacyEmail)
+            // Delete legacy keys
+            CodexSessionKeychain.deleteAll()
+        }
+
+        // Load all accounts
+        let ids = CodexSessionKeychain.savedAccountIds()
+        accounts = ids.compactMap { id in
+            guard let token = CodexSessionKeychain.read(account: .accessToken, accountId: id) else { return nil }
+            let email = CodexSessionKeychain.read(account: .email, accountId: id) ?? id
+            let plan = CodexSessionKeychain.read(account: .planType, accountId: id)
+            return CodexAccount(id: id, accessToken: token, email: email, planType: plan)
+        }
+
+        // Restore active account from UserDefaults, or pick first
+        let savedActive = UserDefaults.standard.string(forKey: "codexActiveAccountId")
+        if let saved = savedActive, accounts.contains(where: { $0.id == saved }) {
+            activeAccountId = saved
+        } else {
+            activeAccountId = accounts.first?.id
+        }
     }
 
     func saveCredentials(accessToken: String, email: String?, planType: String?) {
-        CodexSessionKeychain.save(account: .accessToken, value: accessToken)
-        if let email { CodexSessionKeychain.save(account: .email, value: email) }
-        if let planType { CodexSessionKeychain.save(account: .planType, value: planType) }
-        self.accessToken = accessToken
-        self.email = email
-        self.planType = planType
-        self.isAuthenticated = true
+        let accountId = email ?? "Unknown"
+        CodexSessionKeychain.save(account: .accessToken, accountId: accountId, value: accessToken)
+        if let email { CodexSessionKeychain.save(account: .email, accountId: accountId, value: email) }
+        if let planType { CodexSessionKeychain.save(account: .planType, accountId: accountId, value: planType) }
+        CodexSessionKeychain.addAccountId(accountId)
+
+        let account = CodexAccount(id: accountId, accessToken: accessToken, email: accountId, planType: planType)
+        if let idx = accounts.firstIndex(where: { $0.id == accountId }) {
+            accounts[idx] = account
+        } else {
+            accounts.append(account)
+        }
+
+        // Set as active if first account or no active
+        if activeAccountId == nil || accounts.count == 1 {
+            setActiveAccount(accountId)
+        }
         self.lastError = nil
     }
 
     func signOut() {
-        CodexSessionKeychain.deleteAll()
-        accessToken = nil
-        email = nil
-        planType = nil
-        isAuthenticated = false
+        guard let id = activeAccountId else { return }
+        signOut(accountId: id)
+    }
+
+    func signOut(accountId: String) {
+        CodexSessionKeychain.deleteAll(accountId: accountId)
+        CodexSessionKeychain.removeAccountId(accountId)
+        accounts.removeAll { $0.id == accountId }
+        if activeAccountId == accountId {
+            activeAccountId = accounts.first?.id
+            if let id = activeAccountId {
+                UserDefaults.standard.set(id, forKey: "codexActiveAccountId")
+            } else {
+                UserDefaults.standard.removeObject(forKey: "codexActiveAccountId")
+            }
+        }
         lastError = nil
+    }
+
+    func setActiveAccount(_ id: String) {
+        activeAccountId = id
+        UserDefaults.standard.set(id, forKey: "codexActiveAccountId")
     }
 
     func openLoginWindow() {
@@ -132,7 +201,6 @@ final class CodexLoginCoordinator: NSObject, ObservableObject, WKNavigationDeleg
     private var progressObservation: NSKeyValueObservation?
     private var popupWebView: WKWebView?
     private var popupWindow: NSWindow?
-    private var pendingSessionFetch = false
 
     private let blockedDomains: Set<String> = [
         "support.google.com", "support.apple.com", "help.apple.com"
@@ -171,61 +239,30 @@ final class CodexLoginCoordinator: NSObject, ObservableObject, WKNavigationDeleg
         popupWebView = nil
     }
 
-    // MARK: - Cookie Monitoring
+    // MARK: - Session Polling
 
-    private func startCookieMonitoring() {
+    private func startSessionPolling() {
         cookieTimer?.invalidate()
-        cookieTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
-            self?.checkForSessionCookie()
+        cookieTimer = Timer.scheduledTimer(withTimeInterval: 2.0, repeats: true) { [weak self] _ in
+            self?.checkSession()
         }
     }
 
-    private func checkForSessionCookie() {
-        webView.configuration.websiteDataStore.httpCookieStore.getAllCookies { [weak self] cookies in
+    /// Use JavaScript fetch to check /api/auth/session without navigating away from the page
+    private func checkSession() {
+        let js = """
+        const r = await fetch('/api/auth/session', { credentials: 'include' });
+        const j = await r.json();
+        return JSON.stringify(j);
+        """
+        webView.callAsyncJavaScript(js, arguments: [:], in: nil, in: .page) { [weak self] result in
             guard let self else { return }
-            if let _ = cookies.first(where: {
-                $0.name == "__Secure-next-auth.session-token" && $0.domain.contains(".chatgpt.com")
-            }) {
-                DispatchQueue.main.async {
-                    self.cookieTimer?.invalidate()
-                    self.cookieTimer = nil
-                    self.fetchAccessToken()
-                }
-            }
-        }
-    }
-
-    /// Navigate to /api/auth/session to extract the access token from the JSON response
-    private func fetchAccessToken() {
-        loginState = .validating
-        pendingSessionFetch = true
-        guard let url = URL(string: "https://chatgpt.com/api/auth/session") else { return }
-        webView.load(URLRequest(url: url))
-        // didFinish will call extractTokenFromPage() when pendingSessionFetch is true
-    }
-
-    /// Read the JSON body from the /api/auth/session page after navigation completes
-    private func extractTokenFromPage() {
-        webView.evaluateJavaScript("document.body.innerText") { [weak self] result, error in
-            guard let self else { return }
-
-            if let error {
-                DispatchQueue.main.async {
-                    self.loginState = .failed(message: error.localizedDescription)
-                    self.startCookieMonitoring()
-                }
-                return
-            }
-
-            guard let jsonString = result as? String,
+            guard case .success(let value) = result,
+                  let jsonString = value as? String,
                   let data = jsonString.data(using: .utf8),
                   let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
                   let token = json["accessToken"] as? String else {
-                DispatchQueue.main.async {
-                    self.loginState = .failed(message: "Could not extract access token")
-                    self.startCookieMonitoring()
-                }
-                return
+                return // Not logged in yet, keep polling
             }
 
             let userEmail: String?
@@ -236,6 +273,10 @@ final class CodexLoginCoordinator: NSObject, ObservableObject, WKNavigationDeleg
             }
 
             DispatchQueue.main.async {
+                self.cookieTimer?.invalidate()
+                self.cookieTimer = nil
+                self.loginState = .validating
+
                 self.authManager?.saveCredentials(accessToken: token, email: userEmail, planType: nil)
                 self.loginState = .success(email: userEmail ?? "ChatGPT")
 
@@ -284,28 +325,27 @@ final class CodexLoginCoordinator: NSObject, ObservableObject, WKNavigationDeleg
     // MARK: - WKNavigationDelegate
 
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+        // Only process navigation events from the main webview
+        guard webView === self.webView else { return }
         DispatchQueue.main.async {
-            // After navigating to /api/auth/session, extract the token from the page body
-            if self.pendingSessionFetch {
-                self.pendingSessionFetch = false
-                self.extractTokenFromPage()
-                return
-            }
             if case .validating = self.loginState { return }
             if case .success = self.loginState { return }
             self.loginState = .waitingForLogin
-            self.startCookieMonitoring()
+            self.startSessionPolling()
         }
     }
 
     func webView(_ webView: WKWebView, didStartProvisionalNavigation navigation: WKNavigation!) {
+        guard webView === self.webView else { return }
         DispatchQueue.main.async {
             if case .validating = self.loginState { return }
+            if case .success = self.loginState { return }
             self.loginState = .loading
         }
     }
 
     func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
+        guard webView === self.webView else { return }
         if (error as NSError).code == NSURLErrorCancelled { return }
         DispatchQueue.main.async {
             self.loginState = .failed(message: error.localizedDescription)

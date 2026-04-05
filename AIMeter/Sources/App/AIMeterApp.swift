@@ -206,6 +206,9 @@ struct AIMeterApp: App {
                             Task { await codexService.fetch() }
                         }
                     }
+                    .onChange(of: codexAuthManager.activeAccountId) { _, _ in
+                        Task { await codexService.fetch() }
+                    }
             }
         } label: {
             let selected = MenuBarProvider(rawValue: menuBarProvider) ?? .claude

@@ -29,6 +29,8 @@ struct CodexTabView: View {
                     ProviderStatusBannerView(status: status)
                 }
 
+                accountSwitcher
+
                 UsageCardView(
                     icon: "clock",
                     title: "5hr Usage",
@@ -88,6 +90,76 @@ struct CodexTabView: View {
                     accentColor: codexAccent
                 )
             }
+        }
+    }
+
+    @ViewBuilder
+    private var accountSwitcher: some View {
+        if codexAuthManager.accounts.count > 1 {
+            HStack {
+                Menu {
+                    ForEach(codexAuthManager.accounts) { account in
+                        Button {
+                            codexAuthManager.setActiveAccount(account.id)
+                        } label: {
+                            HStack {
+                                Text(account.email)
+                                if account.id == codexAuthManager.activeAccountId {
+                                    Image(systemName: "checkmark")
+                                }
+                            }
+                        }
+                    }
+                    Divider()
+                    Button {
+                        codexAuthManager.openLoginWindow()
+                    } label: {
+                        Label("Add Account", systemImage: "plus")
+                    }
+                    Button(role: .destructive) {
+                        if let id = codexAuthManager.activeAccountId {
+                            codexAuthManager.signOut(accountId: id)
+                        }
+                    } label: {
+                        Label("Sign Out", systemImage: "rectangle.portrait.and.arrow.right")
+                    }
+                } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: "person.crop.circle")
+                            .font(.system(size: 11))
+                        Text(codexAuthManager.activeAccount?.email ?? "")
+                            .font(.system(size: 11))
+                            .lineLimit(1)
+                        Image(systemName: "chevron.down")
+                            .font(.system(size: 8))
+                    }
+                    .foregroundColor(.secondary)
+                }
+                .menuStyle(.borderlessButton)
+                .fixedSize()
+                Spacer()
+            }
+            .padding(.bottom, 4)
+        } else if codexAuthManager.accounts.count == 1 {
+            HStack {
+                Image(systemName: "person.crop.circle")
+                    .font(.system(size: 11))
+                    .foregroundColor(.secondary)
+                Text(codexAuthManager.activeAccount?.email ?? "")
+                    .font(.system(size: 11))
+                    .foregroundColor(.secondary)
+                    .lineLimit(1)
+                Spacer()
+                Button {
+                    codexAuthManager.openLoginWindow()
+                } label: {
+                    Image(systemName: "plus.circle")
+                        .font(.system(size: 11))
+                        .foregroundColor(.secondary)
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(.bottom, 4)
         }
     }
 
