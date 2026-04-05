@@ -2,14 +2,28 @@ import Foundation
 import WebKit
 import AppKit
 import SwiftUI
+import Combine
 
 // MARK: - CodexAccount
 
 struct CodexAccount: Identifiable, Equatable {
     let id: String        // email (unique identifier)
     let accessToken: String
+    let idToken: String?
+    let refreshToken: String?
+    let expiresAt: Date?
     let email: String
     let planType: String?
+    let chatGPTAccountId: String?
+
+    var resolvedPlanType: String? {
+        planType ?? CodexIDTokenClaims.decode(from: idToken)?.planType
+    }
+
+    var isExpired: Bool {
+        guard let expiresAt else { return false }
+        return expiresAt <= Date()
+    }
 }
 
 // MARK: - CodexAuthManager
@@ -20,6 +34,11 @@ final class CodexAuthManager: ObservableObject {
     @Published var activeAccountId: String?
     @Published var isLoggingIn = false
     @Published var lastError: String?
+    @Published private(set) var proxyStatus: CodexProxyService.Status = .stopped
+    @Published private(set) var accountStates: [String: CodexAccountState] = [:]
+
+    private let proxyService = CodexProxyService.shared
+    private var cancellables = Set<AnyCancellable>()
 
     var activeAccount: CodexAccount? {
         accounts.first { $0.id == activeAccountId }
@@ -27,10 +46,19 @@ final class CodexAuthManager: ObservableObject {
     var isAuthenticated: Bool { activeAccount != nil }
     var accessToken: String? { activeAccount?.accessToken }
     var email: String? { activeAccount?.email }
-    var planType: String? { activeAccount?.planType }
+    var planType: String? { activeAccount?.resolvedPlanType }
+    var isProxyRunning: Bool { proxyStatus.isRunning }
+    var activeAccountState: CodexAccountState? {
+        guard let activeAccountId else { return nil }
+        return accountStates[activeAccountId]
+    }
 
     init() {
+        bindProxyService()
         loadCredentials()
+        if activeAccount != nil {
+            ensureProxyRunning()
+        }
     }
 
     // MARK: - Credential Storage
@@ -59,7 +87,21 @@ final class CodexAuthManager: ObservableObject {
             guard let token = CodexSessionKeychain.read(account: .accessToken, accountId: id) else { return nil }
             let email = CodexSessionKeychain.read(account: .email, accountId: id) ?? id
             let plan = CodexSessionKeychain.read(account: .planType, accountId: id)
-            return CodexAccount(id: id, accessToken: token, email: email, planType: plan)
+            let idToken = CodexSessionKeychain.read(account: .idToken, accountId: id)
+            let refreshToken = CodexSessionKeychain.read(account: .refreshToken, accountId: id)
+            let expiresAt = CodexSessionKeychain.read(account: .expiresAt, accountId: id)
+                .flatMap(CodexDateCodec.decode)
+            let chatGPTAccountId = CodexSessionKeychain.read(account: .chatGPTAccountId, accountId: id)
+            return CodexAccount(
+                id: id,
+                accessToken: token,
+                idToken: idToken,
+                refreshToken: refreshToken,
+                expiresAt: expiresAt,
+                email: email,
+                planType: plan,
+                chatGPTAccountId: chatGPTAccountId
+            )
         }
 
         // Restore active account from UserDefaults, or pick first
@@ -69,16 +111,70 @@ final class CodexAuthManager: ObservableObject {
         } else {
             activeAccountId = accounts.first?.id
         }
+
+        accountStates = proxyService.accountStatesSnapshot()
     }
 
-    func saveCredentials(accessToken: String, email: String?, planType: String?) {
-        let accountId = email ?? "Unknown"
+    func saveCredentials(
+        accessToken: String,
+        idToken: String?,
+        refreshToken: String?,
+        expiresAt: Date?,
+        email: String?,
+        planType: String?,
+        chatGPTAccountId: String?
+    ) {
+        let claims = CodexIDTokenClaims.decode(from: idToken)
+        let resolvedEmail = email ?? claims?.email
+        let resolvedPlanType = planType ?? claims?.planType
+        let accountId = resolvedEmail ?? "Unknown"
         CodexSessionKeychain.save(account: .accessToken, accountId: accountId, value: accessToken)
-        if let email { CodexSessionKeychain.save(account: .email, accountId: accountId, value: email) }
-        if let planType { CodexSessionKeychain.save(account: .planType, accountId: accountId, value: planType) }
+        if let resolvedEmail {
+            CodexSessionKeychain.save(account: .email, accountId: accountId, value: resolvedEmail)
+        } else {
+            CodexSessionKeychain.delete(account: .email, accountId: accountId)
+        }
+        if let resolvedPlanType {
+            CodexSessionKeychain.save(account: .planType, accountId: accountId, value: resolvedPlanType)
+        } else {
+            CodexSessionKeychain.delete(account: .planType, accountId: accountId)
+        }
+        if let idToken {
+            CodexSessionKeychain.save(account: .idToken, accountId: accountId, value: idToken)
+        } else {
+            CodexSessionKeychain.delete(account: .idToken, accountId: accountId)
+        }
+        if let refreshToken {
+            CodexSessionKeychain.save(account: .refreshToken, accountId: accountId, value: refreshToken)
+        } else {
+            CodexSessionKeychain.delete(account: .refreshToken, accountId: accountId)
+        }
+        if let expiresAt {
+            CodexSessionKeychain.save(
+                account: .expiresAt,
+                accountId: accountId,
+                value: CodexDateCodec.encode(expiresAt)
+            )
+        } else {
+            CodexSessionKeychain.delete(account: .expiresAt, accountId: accountId)
+        }
+        if let chatGPTAccountId {
+            CodexSessionKeychain.save(account: .chatGPTAccountId, accountId: accountId, value: chatGPTAccountId)
+        } else {
+            CodexSessionKeychain.delete(account: .chatGPTAccountId, accountId: accountId)
+        }
         CodexSessionKeychain.addAccountId(accountId)
 
-        let account = CodexAccount(id: accountId, accessToken: accessToken, email: accountId, planType: planType)
+        let account = CodexAccount(
+            id: accountId,
+            accessToken: accessToken,
+            idToken: idToken,
+            refreshToken: refreshToken,
+            expiresAt: expiresAt,
+            email: resolvedEmail ?? accountId,
+            planType: resolvedPlanType,
+            chatGPTAccountId: chatGPTAccountId
+        )
         if let idx = accounts.firstIndex(where: { $0.id == accountId }) {
             accounts[idx] = account
         } else {
@@ -89,6 +185,7 @@ final class CodexAuthManager: ObservableObject {
         if activeAccountId == nil || accounts.count == 1 {
             setActiveAccount(accountId)
         }
+        ensureProxyRunning()
         self.lastError = nil
     }
 
@@ -109,12 +206,18 @@ final class CodexAuthManager: ObservableObject {
                 UserDefaults.standard.removeObject(forKey: "codexActiveAccountId")
             }
         }
+        proxyService.setActiveAccount(activeAccount)
+        if accounts.isEmpty {
+            proxyService.stop()
+        }
         lastError = nil
     }
 
     func setActiveAccount(_ id: String) {
+        guard accounts.contains(where: { $0.id == id }) else { return }
         activeAccountId = id
         UserDefaults.standard.set(id, forKey: "codexActiveAccountId")
+        ensureProxyRunning()
     }
 
     func openLoginWindow() {
@@ -130,6 +233,31 @@ final class CodexAuthManager: ObservableObject {
     func loginFailed(_ message: String) {
         isLoggingIn = false
         lastError = message
+    }
+
+    private func bindProxyService() {
+        proxyStatus = proxyService.status
+        accountStates = proxyService.accountStatesSnapshot()
+
+        proxyService.$status
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] status in
+                self?.proxyStatus = status
+            }
+            .store(in: &cancellables)
+
+        proxyService.$accountStates
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] states in
+                self?.accountStates = states
+            }
+            .store(in: &cancellables)
+    }
+
+    private func ensureProxyRunning() {
+        guard activeAccount != nil else { return }
+        proxyService.startIfNeeded()
+        proxyService.setActiveAccount(activeAccount)
     }
 }
 
@@ -167,9 +295,11 @@ final class CodexLoginWindowManager {
             object: win,
             queue: .main
         ) { [weak self] _ in
-            coordinator.cleanup()
-            authManager.loginCompleted()
-            self?.window = nil
+            Task { @MainActor in
+                coordinator.cleanup()
+                authManager.loginCompleted()
+                self?.window = nil
+            }
         }
 
         window = win
@@ -252,8 +382,15 @@ final class CodexLoginCoordinator: NSObject, ObservableObject, WKNavigationDeleg
     private func checkSession() {
         let js = """
         const r = await fetch('/api/auth/session', { credentials: 'include' });
+        if (!r.ok) { return null; }
         const j = await r.json();
-        return JSON.stringify(j);
+        return JSON.stringify({
+          accessToken: j?.accessToken ?? null,
+          sessionToken: j?.sessionToken ?? null,
+          expires: j?.expires ?? null,
+          user: { email: j?.user?.email ?? null },
+          account: { id: j?.account?.id ?? null, planType: j?.account?.planType ?? null }
+        });
         """
         webView.callAsyncJavaScript(js, arguments: [:], in: nil, in: .page) { [weak self] result in
             guard let self else { return }
@@ -265,19 +402,27 @@ final class CodexLoginCoordinator: NSObject, ObservableObject, WKNavigationDeleg
                 return // Not logged in yet, keep polling
             }
 
-            let userEmail: String?
-            if let user = json["user"] as? [String: Any] {
-                userEmail = user["email"] as? String
-            } else {
-                userEmail = nil
-            }
+            let userEmail = (json["user"] as? [String: Any])?["email"] as? String
+            let account = json["account"] as? [String: Any]
+            let sessionToken = json["sessionToken"] as? String
+            let expiresAt = CodexDateCodec.date(fromSessionValue: json["expires"])
+            let planType = account?["planType"] as? String
+            let chatGPTAccountId = account?["id"] as? String
 
             DispatchQueue.main.async {
                 self.cookieTimer?.invalidate()
                 self.cookieTimer = nil
                 self.loginState = .validating
 
-                self.authManager?.saveCredentials(accessToken: token, email: userEmail, planType: nil)
+                self.authManager?.saveCredentials(
+                    accessToken: token,
+                    idToken: token,
+                    refreshToken: sessionToken,
+                    expiresAt: expiresAt,
+                    email: userEmail,
+                    planType: planType,
+                    chatGPTAccountId: chatGPTAccountId
+                )
                 self.loginState = .success(email: userEmail ?? "ChatGPT")
 
                 Task { @MainActor in
@@ -365,6 +510,74 @@ final class CodexLoginCoordinator: NSObject, ObservableObject, WKNavigationDeleg
         } else {
             decisionHandler(.allow)
         }
+    }
+}
+
+private struct CodexIDTokenClaims: Decodable {
+    let chatGPTAccountID: String?
+    let email: String?
+    let planType: String?
+
+    enum CodingKeys: String, CodingKey {
+        case chatGPTAccountID = "chatgpt_account_id"
+        case email
+        case planType = "plan_type"
+    }
+
+    static func decode(from token: String?) -> CodexIDTokenClaims? {
+        guard let token else { return nil }
+        let segments = token.split(separator: ".")
+        guard segments.count >= 2 else { return nil }
+
+        var payload = String(segments[1])
+            .replacingOccurrences(of: "-", with: "+")
+            .replacingOccurrences(of: "_", with: "/")
+        let remainder = payload.count % 4
+        if remainder > 0 {
+            payload += String(repeating: "=", count: 4 - remainder)
+        }
+
+        guard let data = Data(base64Encoded: payload) else { return nil }
+        return try? JSONDecoder().decode(CodexIDTokenClaims.self, from: data)
+    }
+}
+
+private enum CodexDateCodec {
+    private static let formatter = ISO8601DateFormatter()
+
+    static func encode(_ date: Date) -> String {
+        formatter.string(from: date)
+    }
+
+    static func decode(_ string: String) -> Date? {
+        formatter.date(from: string)
+    }
+
+    static func date(fromSessionValue value: Any?) -> Date? {
+        switch value {
+        case let timestamp as TimeInterval:
+            return normalize(timestamp)
+        case let timestamp as Double:
+            return normalize(timestamp)
+        case let timestamp as Int:
+            return normalize(TimeInterval(timestamp))
+        case let timestamp as Int64:
+            return normalize(TimeInterval(timestamp))
+        case let string as String:
+            if let numeric = TimeInterval(string) {
+                return normalize(numeric)
+            }
+            return formatter.date(from: string)
+        default:
+            return nil
+        }
+    }
+
+    private static func normalize(_ timestamp: TimeInterval) -> Date {
+        if timestamp > 10_000_000_000 {
+            return Date(timeIntervalSince1970: timestamp / 1000)
+        }
+        return Date(timeIntervalSince1970: timestamp)
     }
 }
 

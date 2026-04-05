@@ -10,6 +10,10 @@ enum CodexSessionKeychain {
         case accessToken
         case email
         case planType
+        case idToken
+        case refreshToken
+        case expiresAt
+        case chatGPTAccountId
     }
 
     static func save(account: Account, value: String) {

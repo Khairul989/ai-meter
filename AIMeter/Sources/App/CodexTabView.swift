@@ -96,68 +96,74 @@ struct CodexTabView: View {
     @ViewBuilder
     private var accountSwitcher: some View {
         if codexAuthManager.accounts.count > 1 {
-            HStack {
-                Menu {
-                    ForEach(codexAuthManager.accounts) { account in
-                        Button {
-                            codexAuthManager.setActiveAccount(account.id)
-                        } label: {
-                            HStack {
-                                Text(account.email)
-                                if account.id == codexAuthManager.activeAccountId {
-                                    Image(systemName: "checkmark")
+            VStack(alignment: .leading, spacing: 4) {
+                HStack {
+                    Menu {
+                        ForEach(codexAuthManager.accounts) { account in
+                            Button {
+                                codexAuthManager.setActiveAccount(account.id)
+                            } label: {
+                                HStack {
+                                    Text(account.email)
+                                    if account.id == codexAuthManager.activeAccountId {
+                                        Image(systemName: "checkmark")
+                                    }
                                 }
                             }
                         }
-                    }
-                    Divider()
-                    Button {
-                        codexAuthManager.openLoginWindow()
-                    } label: {
-                        Label("Add Account", systemImage: "plus")
-                    }
-                    Button(role: .destructive) {
-                        if let id = codexAuthManager.activeAccountId {
-                            codexAuthManager.signOut(accountId: id)
+                        Divider()
+                        Button {
+                            codexAuthManager.openLoginWindow()
+                        } label: {
+                            Label("Add Account", systemImage: "plus")
+                        }
+                        Button(role: .destructive) {
+                            if let id = codexAuthManager.activeAccountId {
+                                codexAuthManager.signOut(accountId: id)
+                            }
+                        } label: {
+                            Label("Sign Out", systemImage: "rectangle.portrait.and.arrow.right")
                         }
                     } label: {
-                        Label("Sign Out", systemImage: "rectangle.portrait.and.arrow.right")
+                        HStack(spacing: 4) {
+                            Image(systemName: "person.crop.circle")
+                                .font(.system(size: 11))
+                            Text(codexAuthManager.activeAccount?.email ?? "")
+                                .font(.system(size: 11))
+                                .lineLimit(1)
+                            Image(systemName: "chevron.down")
+                                .font(.system(size: 8))
+                        }
+                        .foregroundColor(.secondary)
                     }
-                } label: {
-                    HStack(spacing: 4) {
-                        Image(systemName: "person.crop.circle")
-                            .font(.system(size: 11))
-                        Text(codexAuthManager.activeAccount?.email ?? "")
-                            .font(.system(size: 11))
-                            .lineLimit(1)
-                        Image(systemName: "chevron.down")
-                            .font(.system(size: 8))
-                    }
-                    .foregroundColor(.secondary)
+                    .menuStyle(.borderlessButton)
+                    .fixedSize()
+                    Spacer()
                 }
-                .menuStyle(.borderlessButton)
-                .fixedSize()
-                Spacer()
+                proxyStatusRow
             }
             .padding(.bottom, 4)
         } else if codexAuthManager.accounts.count == 1 {
-            HStack {
-                Image(systemName: "person.crop.circle")
-                    .font(.system(size: 11))
-                    .foregroundColor(.secondary)
-                Text(codexAuthManager.activeAccount?.email ?? "")
-                    .font(.system(size: 11))
-                    .foregroundColor(.secondary)
-                    .lineLimit(1)
-                Spacer()
-                Button {
-                    codexAuthManager.openLoginWindow()
-                } label: {
-                    Image(systemName: "plus.circle")
+            VStack(alignment: .leading, spacing: 4) {
+                HStack {
+                    Image(systemName: "person.crop.circle")
                         .font(.system(size: 11))
                         .foregroundColor(.secondary)
+                    Text(codexAuthManager.activeAccount?.email ?? "")
+                        .font(.system(size: 11))
+                        .foregroundColor(.secondary)
+                        .lineLimit(1)
+                    Spacer()
+                    Button {
+                        codexAuthManager.openLoginWindow()
+                    } label: {
+                        Image(systemName: "plus.circle")
+                            .font(.system(size: 11))
+                            .foregroundColor(.secondary)
+                    }
+                    .buttonStyle(.plain)
                 }
-                .buttonStyle(.plain)
+                proxyStatusRow
             }
             .padding(.bottom, 4)
         }
@@ -244,5 +250,50 @@ struct CodexTabView: View {
         .padding(8)
         .background(Color.orange.opacity(0.1))
         .clipShape(RoundedRectangle(cornerRadius: AppRadius.card))
+    }
+
+    private var proxyStatusRow: some View {
+        HStack(spacing: 6) {
+            Circle()
+                .fill(codexAuthManager.isProxyRunning ? Color.green : Color.orange)
+                .frame(width: 6, height: 6)
+            Text("Proxy: \(codexAuthManager.proxyStatus.displayText)")
+                .font(.system(size: 10))
+                .foregroundColor(.secondary)
+            if let state = codexAuthManager.activeAccountState {
+                Text(accountStateText(state))
+                    .font(.system(size: 10))
+                    .foregroundColor(accountStateColor(state))
+                    .lineLimit(1)
+            }
+            Spacer()
+        }
+    }
+
+    private func accountStateText(_ state: CodexAccountState) -> String {
+        switch state.status {
+        case .ready:
+            return "Account ready"
+        case .rateLimited:
+            if let resetAt = state.resetAt {
+                return "Rate limited until \(shortDateLabel(resetAt))"
+            }
+            return "Rate limited"
+        case .unauthorized:
+            return "Session expired"
+        case .unavailable:
+            return state.message ?? "Proxy unavailable"
+        }
+    }
+
+    private func accountStateColor(_ state: CodexAccountState) -> Color {
+        switch state.status {
+        case .ready:
+            return .green
+        case .rateLimited:
+            return .orange
+        case .unauthorized, .unavailable:
+            return .red
+        }
     }
 }

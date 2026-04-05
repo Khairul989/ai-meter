@@ -17,6 +17,9 @@ packages:
   Sparkle:
     url: https://github.com/sparkle-project/Sparkle
     from: 2.0.0
+  SwiftNIO:
+    url: https://github.com/apple/swift-nio.git
+    from: 2.60.0
 
 targets:
   AIMeter:
@@ -65,6 +68,14 @@ targets:
           - $(AppIdentifierPrefix)com.khairul.aimeter
     dependencies:
       - package: Sparkle
+      - package: SwiftNIO
+        product: NIOCore
+      - package: SwiftNIO
+        product: NIOHTTP1
+      - package: SwiftNIO
+        product: NIOPosix
+      - package: SwiftNIO
+        product: NIOWebSocket
 
   AIMeterWidget:
     type: app-extension
