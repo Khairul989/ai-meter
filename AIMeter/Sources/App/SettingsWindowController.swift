@@ -10,6 +10,9 @@ final class SettingsWindowController: NSWindowController {
         updaterManager: UpdaterManager,
         authManager: SessionAuthManager,
         codexAuthManager: CodexAuthManager,
+        glmAuthManager: APIKeyAuthManager,
+        kimiAuthManager: APIKeyAuthManager,
+        minimaxAuthManager: APIKeyAuthManager,
         historyService: QuotaHistoryService,
         copilotHistoryService: CopilotHistoryService
     ) {
@@ -20,6 +23,9 @@ final class SettingsWindowController: NSWindowController {
                 updaterManager: updaterManager,
                 authManager: authManager,
                 codexAuthManager: codexAuthManager,
+                glmAuthManager: glmAuthManager,
+                kimiAuthManager: kimiAuthManager,
+                minimaxAuthManager: minimaxAuthManager,
                 historyService: historyService,
                 copilotHistoryService: copilotHistoryService
             )
@@ -42,6 +48,9 @@ final class SettingsWindowController: NSWindowController {
             updaterManager: updaterManager,
             authManager: authManager,
             codexAuthManager: codexAuthManager,
+            glmAuthManager: glmAuthManager,
+            kimiAuthManager: kimiAuthManager,
+            minimaxAuthManager: minimaxAuthManager,
             historyService: historyService,
             copilotHistoryService: copilotHistoryService
         )

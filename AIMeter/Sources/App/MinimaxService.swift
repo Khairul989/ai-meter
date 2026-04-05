@@ -5,8 +5,10 @@ final class MinimaxService: HTTPPollingService {
     @Published var minimaxData: MinimaxUsageData = .empty
     // Caller must retain the MinimaxHistoryService instance; this service holds only a weak reference
     private weak var minimaxHistoryService: MinimaxHistoryService?
+    private weak var authManager: APIKeyAuthManager?
 
-    func start(interval: TimeInterval = 60, historyService: MinimaxHistoryService? = nil) {
+    func start(interval: TimeInterval = 60, authManager: APIKeyAuthManager, historyService: MinimaxHistoryService? = nil) {
+        self.authManager = authManager
         self.minimaxHistoryService = historyService
         super.start(interval: interval)
     }
@@ -25,6 +27,9 @@ final class MinimaxService: HTTPPollingService {
     /// True if key comes from env var (read-only in Settings)
     static var keyIsFromEnvironment: Bool {
         if APIKeyKeychainHelper.minimax.readAPIKey() != nil { return false }
+        for accountId in APIKeyKeychainHelper.minimax.savedAccountIds() {
+            if APIKeyKeychainHelper.minimax.readAPIKey(accountId: accountId) != nil { return false }
+        }
         if let envKey = ProcessInfo.processInfo.environment["MINIMAX_API_KEY"], !envKey.isEmpty {
             return true
         }
@@ -32,7 +37,7 @@ final class MinimaxService: HTTPPollingService {
     }
 
     override func resolveAPIKey() -> String? {
-        MinimaxService.resolveAPIKey()
+        authManager?.activeAPIKey ?? MinimaxService.resolveAPIKey()
     }
 
     override func buildRequest(apiKey: String) -> URLRequest? {

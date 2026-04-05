@@ -210,6 +210,7 @@ struct PopoverView: View {
     @EnvironmentObject var kimiService: KimiService
     @EnvironmentObject var codexService: CodexService
     @EnvironmentObject var codexAuthManager: CodexAuthManager
+    @EnvironmentObject var apiKeyAuthManagers: APIKeyAuthManagers
     @EnvironmentObject var minimaxService: MinimaxService
     @EnvironmentObject var minimaxHistoryService: MinimaxHistoryService
     @EnvironmentObject var updaterManager: UpdaterManager
@@ -247,6 +248,9 @@ struct PopoverView: View {
             updaterManager: updaterManager,
             authManager: authManager,
             codexAuthManager: codexAuthManager,
+            glmAuthManager: apiKeyAuthManagers.glm,
+            kimiAuthManager: apiKeyAuthManagers.kimi,
+            minimaxAuthManager: apiKeyAuthManagers.minimax,
             historyService: historyService,
             copilotHistoryService: copilotHistoryService
         )

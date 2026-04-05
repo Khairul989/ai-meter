@@ -3,7 +3,10 @@ import SwiftUI
 struct KimiTabView: View {
     @ObservedObject var kimiService: KimiService
     @ObservedObject var historyService: KimiHistoryService
+    @EnvironmentObject private var apiKeyAuthManagers: APIKeyAuthManagers
     var onKeySaved: (() -> Void)? = nil
+
+    private var authManager: APIKeyAuthManager { apiKeyAuthManagers.kimi }
 
     var body: some View {
         if kimiService.error == .noKey {
@@ -12,11 +15,14 @@ struct KimiTabView: View {
                 placeholder: "KIMI_API_KEY…",
                 accentColor: ProviderTheme.kimi.accentColor
             ) { key in
-                APIKeyKeychainHelper.kimi.saveAPIKey(key)
+                authManager.addAccount(label: "Default", apiKey: key)
                 onKeySaved?()
             }
         } else {
             VStack(spacing: 8) {
+                    if authManager.accounts.count > 1 {
+                        accountSwitcher
+                    }
                     if case .fetchFailed = kimiService.error {
                         ErrorBannerView(message: "Failed to fetch balance") {
                             Task { await kimiService.fetch() }
@@ -94,5 +100,36 @@ struct KimiTabView: View {
         }
     }
 
+    private var accountSwitcher: some View {
+        HStack {
+            Menu {
+                ForEach(authManager.accounts) { account in
+                    Button {
+                        authManager.setActiveAccount(account.id)
+                    } label: {
+                        HStack {
+                            Text(account.label)
+                            if account.id == authManager.activeAccountId {
+                                Image(systemName: "checkmark")
+                            }
+                        }
+                    }
+                }
+            } label: {
+                HStack(spacing: 4) {
+                    Text(authManager.activeAccount?.label ?? "")
+                        .font(.system(size: 10))
+                        .foregroundColor(.secondary)
+                        .lineLimit(1)
+                    Image(systemName: "chevron.up.chevron.down")
+                        .font(.system(size: 8))
+                        .foregroundColor(.secondary)
+                }
+            }
+            .menuStyle(.borderlessButton)
+            .fixedSize()
+            Spacer()
+        }
+    }
 
 }

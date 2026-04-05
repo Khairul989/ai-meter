@@ -4,19 +4,35 @@ import AppKit
 import Combine
 import SwiftUI
 
+// MARK: - ClaudeAccount
+
+struct ClaudeAccount: Identifiable, Equatable {
+    let id: String
+    let sessionKey: String
+    let organizationId: String
+    let organizationName: String
+    let planName: String?
+    let capabilities: [String]
+}
+
 // MARK: - SessionAuthManager
 
 @MainActor
 final class SessionAuthManager: ObservableObject {
-    @Published var isAuthenticated = false
+    @Published var accounts: [ClaudeAccount] = []
+    @Published var activeAccountId: String?
     @Published var isLoggingIn = false
     @Published var lastError: String?
-    @Published var organizationName: String?
-    @Published var planName: String?
-    @Published var capabilities: [String] = []
 
-    private(set) var sessionKey: String?
-    private(set) var organizationId: String?
+    var activeAccount: ClaudeAccount? {
+        accounts.first { $0.id == activeAccountId }
+    }
+    var sessionKey: String? { activeAccount?.sessionKey }
+    var organizationId: String? { activeAccount?.organizationId }
+    var organizationName: String? { activeAccount?.organizationName }
+    var planName: String? { activeAccount?.planName }
+    var capabilities: [String] { activeAccount?.capabilities ?? [] }
+    var isAuthenticated: Bool { activeAccount != nil }
 
     init() {
         loadCredentials()
@@ -25,102 +41,168 @@ final class SessionAuthManager: ObservableObject {
     // MARK: - Credential Storage
 
     private func loadCredentials() {
-        sessionKey = ClaudeSessionKeychain.read(account: .sessionKey)
-        organizationId = ClaudeSessionKeychain.read(account: .organizationId)
-        organizationName = ClaudeSessionKeychain.read(account: .orgName)
-        planName = ClaudeSessionKeychain.read(account: .planName)
-        if let capsString = ClaudeSessionKeychain.read(account: .capabilities),
+        // Migration: check for legacy un-namespaced keys
+        if let legacyKey = ClaudeSessionKeychain.read(account: .sessionKey),
+           let legacyOrgId = ClaudeSessionKeychain.read(account: .organizationId) {
+            ClaudeSessionKeychain.save(account: .sessionKey, accountId: legacyOrgId, value: legacyKey)
+            ClaudeSessionKeychain.save(account: .organizationId, accountId: legacyOrgId, value: legacyOrgId)
+            if let orgName = ClaudeSessionKeychain.read(account: .orgName) {
+                ClaudeSessionKeychain.save(account: .orgName, accountId: legacyOrgId, value: orgName)
+            }
+            if let plan = ClaudeSessionKeychain.read(account: .planName) {
+                ClaudeSessionKeychain.save(account: .planName, accountId: legacyOrgId, value: plan)
+            }
+            if let caps = ClaudeSessionKeychain.read(account: .capabilities) {
+                ClaudeSessionKeychain.save(account: .capabilities, accountId: legacyOrgId, value: caps)
+            }
+            ClaudeSessionKeychain.addAccountId(legacyOrgId)
+            ClaudeSessionKeychain.deleteAll()
+        }
+
+        if ClaudeSessionKeychain.savedAccountIds().isEmpty {
+            migrateFromLegacyFiles()
+        }
+
+        let accountIds = ClaudeSessionKeychain.savedAccountIds()
+        accounts = accountIds.compactMap { loadAccount(id: $0) }
+
+        let savedActive = UserDefaults.standard.string(forKey: "claudeActiveAccountId")
+        if let savedActive, accounts.contains(where: { $0.id == savedActive }) {
+            activeAccountId = savedActive
+        } else {
+            activeAccountId = accounts.first?.id
+        }
+    }
+
+    private func loadAccount(id: String) -> ClaudeAccount? {
+        guard let sessionKey = ClaudeSessionKeychain.read(account: .sessionKey, accountId: id) else { return nil }
+        let orgId = ClaudeSessionKeychain.read(account: .organizationId, accountId: id) ?? id
+        let orgName = ClaudeSessionKeychain.read(account: .orgName, accountId: id)
+        let planName = ClaudeSessionKeychain.read(account: .planName, accountId: id)
+        var capabilities: [String] = []
+        if let capsString = ClaudeSessionKeychain.read(account: .capabilities, accountId: id),
            let capsData = capsString.data(using: .utf8),
            let caps = try? JSONDecoder().decode([String].self, from: capsData) {
             capabilities = caps
         }
-
-        // Migration: if Keychain empty but legacy files exist, migrate
-        if sessionKey == nil {
-            migrateFromLegacyFiles()
-        }
-
-        isAuthenticated = sessionKey != nil && organizationId != nil
+        return ClaudeAccount(
+            id: id,
+            sessionKey: sessionKey,
+            organizationId: orgId,
+            organizationName: orgName ?? "",
+            planName: planName,
+            capabilities: capabilities
+        )
     }
 
     private func migrateFromLegacyFiles() {
         let configDir = FileManager.default.homeDirectoryForCurrentUser
             .appendingPathComponent(".config/aimeter", isDirectory: true)
 
-        let files: [(URL, ClaudeSessionKeychain.Account)] = [
-            (configDir.appendingPathComponent("session"), .sessionKey),
-            (configDir.appendingPathComponent("org"), .organizationId),
-            (configDir.appendingPathComponent("org_name"), .orgName),
-            (configDir.appendingPathComponent("plan"), .planName),
-        ]
+        let sessionFile = configDir.appendingPathComponent("session")
+        let orgFile = configDir.appendingPathComponent("org")
+        let orgNameFile = configDir.appendingPathComponent("org_name")
+        let planFile = configDir.appendingPathComponent("plan")
+        let capsFile = configDir.appendingPathComponent("capabilities")
 
-        var migrated = false
-        for (fileURL, account) in files {
-            guard let data = try? Data(contentsOf: fileURL),
-                  let str = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines),
-                  !str.isEmpty else { continue }
-            ClaudeSessionKeychain.save(account: account, value: str)
-            // Verify keychain write succeeded before marking as migrated
-            if ClaudeSessionKeychain.read(account: account) == str {
-                migrated = true
-                try? FileManager.default.removeItem(at: fileURL)
-            }
+        func readLegacyString(_ url: URL) -> String? {
+            guard let data = try? Data(contentsOf: url),
+                  let str = String(data: data, encoding: .utf8)?
+                    .trimmingCharacters(in: .whitespacesAndNewlines),
+                  !str.isEmpty else { return nil }
+            return str
         }
 
-        // Migrate capabilities
-        let capsFile = configDir.appendingPathComponent("capabilities")
+        guard let sessionKey = readLegacyString(sessionFile),
+              let orgId = readLegacyString(orgFile) else { return }
+
+        let orgName = readLegacyString(orgNameFile)
+        let planName = readLegacyString(planFile)
+        var capabilitiesString: String?
         if let capsData = try? Data(contentsOf: capsFile),
            let _ = try? JSONDecoder().decode([String].self, from: capsData) {
-            let capsString = String(data: capsData, encoding: .utf8) ?? ""
-            ClaudeSessionKeychain.save(account: .capabilities, value: capsString)
-            // Only delete if verified in keychain
-            if ClaudeSessionKeychain.read(account: .capabilities) == capsString {
-                try? FileManager.default.removeItem(at: capsFile)
-            }
+            capabilitiesString = String(data: capsData, encoding: .utf8)
         }
 
-        if migrated {
-            // Reload from keychain
-            sessionKey = ClaudeSessionKeychain.read(account: .sessionKey)
-            organizationId = ClaudeSessionKeychain.read(account: .organizationId)
-            organizationName = ClaudeSessionKeychain.read(account: .orgName)
-            planName = ClaudeSessionKeychain.read(account: .planName)
-            if let capsString = ClaudeSessionKeychain.read(account: .capabilities),
-               let capsData = capsString.data(using: .utf8),
-               let caps = try? JSONDecoder().decode([String].self, from: capsData) {
-                capabilities = caps
-            }
+        ClaudeSessionKeychain.save(account: .sessionKey, accountId: orgId, value: sessionKey)
+        ClaudeSessionKeychain.save(account: .organizationId, accountId: orgId, value: orgId)
+        if let orgName {
+            ClaudeSessionKeychain.save(account: .orgName, accountId: orgId, value: orgName)
+        }
+        if let planName {
+            ClaudeSessionKeychain.save(account: .planName, accountId: orgId, value: planName)
+        }
+        if let capabilitiesString {
+            ClaudeSessionKeychain.save(account: .capabilities, accountId: orgId, value: capabilitiesString)
+        }
+        ClaudeSessionKeychain.addAccountId(orgId)
+
+        guard ClaudeSessionKeychain.read(account: .sessionKey, accountId: orgId) == sessionKey,
+              ClaudeSessionKeychain.read(account: .organizationId, accountId: orgId) == orgId else { return }
+
+        try? FileManager.default.removeItem(at: sessionFile)
+        try? FileManager.default.removeItem(at: orgFile)
+        if let orgName,
+           ClaudeSessionKeychain.read(account: .orgName, accountId: orgId) == orgName {
+            try? FileManager.default.removeItem(at: orgNameFile)
+        }
+        if let planName,
+           ClaudeSessionKeychain.read(account: .planName, accountId: orgId) == planName {
+            try? FileManager.default.removeItem(at: planFile)
+        }
+        if let capabilitiesString,
+           ClaudeSessionKeychain.read(account: .capabilities, accountId: orgId) == capabilitiesString {
+            try? FileManager.default.removeItem(at: capsFile)
         }
     }
 
     func saveCredentials(sessionKey: String, orgId: String, orgName: String,
                          planName: String? = nil, capabilities: [String] = []) {
-        ClaudeSessionKeychain.save(account: .sessionKey, value: sessionKey)
-        ClaudeSessionKeychain.save(account: .organizationId, value: orgId)
-        ClaudeSessionKeychain.save(account: .orgName, value: orgName)
-        if let plan = planName { ClaudeSessionKeychain.save(account: .planName, value: plan) }
-        if !capabilities.isEmpty,
-           let data = try? JSONEncoder().encode(capabilities),
-           let str = String(data: data, encoding: .utf8) {
-            ClaudeSessionKeychain.save(account: .capabilities, value: str)
+        ClaudeSessionKeychain.save(account: .sessionKey, accountId: orgId, value: sessionKey)
+        ClaudeSessionKeychain.save(account: .organizationId, accountId: orgId, value: orgId)
+        ClaudeSessionKeychain.save(account: .orgName, accountId: orgId, value: orgName)
+        if let planName {
+            ClaudeSessionKeychain.save(account: .planName, accountId: orgId, value: planName)
+        } else {
+            ClaudeSessionKeychain.delete(account: .planName, accountId: orgId)
         }
-        self.sessionKey = sessionKey
-        self.organizationId = orgId
-        self.organizationName = orgName
-        self.planName = planName ?? self.planName
-        self.capabilities = capabilities.isEmpty ? self.capabilities : capabilities
-        self.isAuthenticated = true
+        if let capsData = try? JSONEncoder().encode(capabilities),
+           let capsString = String(data: capsData, encoding: .utf8) {
+            ClaudeSessionKeychain.save(account: .capabilities, accountId: orgId, value: capsString)
+        }
+        ClaudeSessionKeychain.addAccountId(orgId)
+
+        let accountIds = ClaudeSessionKeychain.savedAccountIds()
+        accounts = accountIds.compactMap { loadAccount(id: $0) }
+        activeAccountId = orgId
+        UserDefaults.standard.set(orgId, forKey: "claudeActiveAccountId")
         self.lastError = nil
     }
 
-    func signOut() {
-        ClaudeSessionKeychain.deleteAll()
-        sessionKey = nil
-        organizationId = nil
-        organizationName = nil
-        planName = nil
-        capabilities = []
-        isAuthenticated = false
+    func setActiveAccount(_ accountId: String) {
+        guard accounts.contains(where: { $0.id == accountId }) else { return }
+        activeAccountId = accountId
+        UserDefaults.standard.set(accountId, forKey: "claudeActiveAccountId")
+    }
+
+    func signOut(accountId: String? = nil) {
+        let targetId = accountId ?? activeAccountId
+        guard let targetId else { return }
+
+        ClaudeSessionKeychain.deleteAll(accountId: targetId)
+        ClaudeSessionKeychain.removeAccountId(targetId)
+
+        accounts.removeAll { $0.id == targetId }
+
+        if activeAccountId == targetId {
+            activeAccountId = accounts.first?.id
+            if let newActive = activeAccountId {
+                UserDefaults.standard.set(newActive, forKey: "claudeActiveAccountId")
+            } else {
+                UserDefaults.standard.removeObject(forKey: "claudeActiveAccountId")
+            }
+        }
+
         lastError = nil
     }
 

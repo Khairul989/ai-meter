@@ -61,9 +61,13 @@ struct AIMeterApp: App {
     @StateObject private var codexHistoryService = CodexHistoryService()
     @StateObject private var glmService = GLMService()
     @StateObject private var kimiService = KimiService()
+    @StateObject private var glmAuthManager: APIKeyAuthManager
+    @StateObject private var kimiAuthManager: APIKeyAuthManager
     @StateObject private var codexService = CodexService()
     @StateObject private var codexAuthManager = CodexAuthManager()
     @StateObject private var minimaxService = MinimaxService()
+    @StateObject private var minimaxAuthManager: APIKeyAuthManager
+    @StateObject private var apiKeyAuthManagers: APIKeyAuthManagers
     @StateObject private var minimaxHistoryService = MinimaxHistoryService()
     @StateObject private var updaterManager = UpdaterManager()
     @StateObject private var authManager = SessionAuthManager()
@@ -85,6 +89,22 @@ struct AIMeterApp: App {
     @State private var recapService: RecapService?
     @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding = false
     @AppStorage("keychainUpgradedV2") private var keychainUpgraded = false
+
+    init() {
+        let glmAuthManager = APIKeyAuthManager(keychain: .glm)
+        let kimiAuthManager = APIKeyAuthManager(keychain: .kimi)
+        let minimaxAuthManager = APIKeyAuthManager(keychain: .minimax)
+        _glmAuthManager = StateObject(wrappedValue: glmAuthManager)
+        _kimiAuthManager = StateObject(wrappedValue: kimiAuthManager)
+        _minimaxAuthManager = StateObject(wrappedValue: minimaxAuthManager)
+        _apiKeyAuthManagers = StateObject(
+            wrappedValue: APIKeyAuthManagers(
+                glm: glmAuthManager,
+                kimi: kimiAuthManager,
+                minimax: minimaxAuthManager
+            )
+        )
+    }
 
     private func showKeychainUpgradeAlert() {
         DispatchQueue.main.async {
@@ -109,125 +129,183 @@ struct AIMeterApp: App {
         }
     }
 
-    var body: some Scene {
-        let refreshAll: () -> Void = {
-            guard !isRefreshing else { return }
-            isRefreshing = true
-            Task { @MainActor in
-                await withTaskGroup(of: Void.self) { group in
-                    group.addTask { await service.fetch() }
-                    group.addTask { await copilotService.fetch() }
-                    group.addTask { await glmService.fetch() }
-                    group.addTask { await kimiService.fetch() }
-                    group.addTask { await codexService.fetch() }
-                    group.addTask { await minimaxService.fetch() }
-                }
-                statsService.load()
-                try? await Task.sleep(for: .milliseconds(600))
-                isRefreshing = false
+    private func refreshAllProviders() {
+        guard !isRefreshing else { return }
+        isRefreshing = true
+        Task { @MainActor in
+            await withTaskGroup(of: Void.self) { group in
+                group.addTask { await service.fetch() }
+                group.addTask { await copilotService.fetch() }
+                group.addTask { await glmService.fetch() }
+                group.addTask { await kimiService.fetch() }
+                group.addTask { await codexService.fetch() }
+                group.addTask { await minimaxService.fetch() }
+            }
+            statsService.load()
+            try? await Task.sleep(for: .milliseconds(600))
+            isRefreshing = false
+        }
+    }
+
+    private func restartAllProviders() {
+        service.stop()
+        service.start(interval: interval(for: .claude), authManager: authManager, historyService: historyService)
+        copilotService.stop()
+        copilotService.start(interval: interval(for: .copilot), historyService: copilotHistoryService)
+        glmService.stop()
+        glmService.start(interval: interval(for: .glm), authManager: glmAuthManager, historyService: glmHistoryService)
+        kimiService.stop()
+        kimiService.start(interval: interval(for: .kimi), authManager: kimiAuthManager, historyService: kimiHistoryService)
+        codexService.stop()
+        codexService.start(interval: interval(for: .codex), authManager: codexAuthManager, historyService: codexHistoryService)
+        minimaxService.stop()
+        minimaxService.start(interval: interval(for: .minimax), authManager: minimaxAuthManager, historyService: minimaxHistoryService)
+        statsService.stop()
+        statsService.start(interval: interval(for: .claude))
+    }
+
+    private func handleProviderStatusChange(enabled: Bool) {
+        if enabled {
+            providerStatusService.start()
+        } else {
+            providerStatusService.stop()
+        }
+    }
+
+    private func handleClaudeAuthenticationChange(isAuthenticated: Bool) {
+        if isAuthenticated {
+            Task { await service.fetch() }
+        }
+    }
+
+    private func handleCodexAuthenticationChange(isAuthenticated: Bool) {
+        if isAuthenticated {
+            Task { await codexService.fetch() }
+        }
+    }
+
+    private func handlePopoverAppear() {
+        UNUserNotificationCenter.current().delegate = NotificationDelegate.shared
+        NotificationManager.shared.requestPermission()
+        if !keychainUpgraded {
+            keychainUpgraded = true
+            if hasCompletedOnboarding {
+                showKeychainUpgradeAlert()
             }
         }
-        let restartAll: () -> Void = {
-            service.stop()
-            service.start(interval: interval(for: .claude), authManager: authManager, historyService: historyService)
-            copilotService.stop()
-            copilotService.start(interval: interval(for: .copilot), historyService: copilotHistoryService)
-            glmService.stop()
-            glmService.start(interval: interval(for: .glm), historyService: glmHistoryService)
-            kimiService.stop()
-            kimiService.start(interval: interval(for: .kimi), historyService: kimiHistoryService)
-            codexService.stop()
-            codexService.start(interval: interval(for: .codex), authManager: codexAuthManager, historyService: codexHistoryService)
-            minimaxService.stop()
-            minimaxService.start(interval: interval(for: .minimax), historyService: minimaxHistoryService)
-            statsService.stop()
-            statsService.start(interval: interval(for: .claude))
+
+        service.start(interval: interval(for: .claude), authManager: authManager, historyService: historyService)
+        copilotService.start(interval: interval(for: .copilot), historyService: copilotHistoryService)
+        glmService.start(interval: interval(for: .glm), authManager: glmAuthManager, historyService: glmHistoryService)
+        kimiService.start(interval: interval(for: .kimi), authManager: kimiAuthManager, historyService: kimiHistoryService)
+        codexService.start(interval: interval(for: .codex), authManager: codexAuthManager, historyService: codexHistoryService)
+        minimaxService.start(interval: interval(for: .minimax), authManager: minimaxAuthManager, historyService: minimaxHistoryService)
+        statsService.start(interval: interval(for: .claude))
+        if checkProviderStatus {
+            providerStatusService.start()
         }
+
+        if recapService == nil {
+            recapService = RecapService(quotaHistoryService: historyService, copilotHistoryService: copilotHistoryService)
+        }
+        recapService?.checkAndGenerateRecap(notificationManager: NotificationManager.shared)
+        GlobalHotKeyManager.shared.start()
+    }
+
+    private func handleOpenLatestRecap() {
+        guard let recapService else { return }
+        let recaps = recapService.loadSavedRecaps()
+        if let latest = recaps.last {
+            RecapWindowController.show(recap: latest)
+        }
+    }
+
+    private func popoverContent() -> some View {
+        let baseView = AnyView(
+            PopoverView(onRefresh: refreshAllProviders)
+                .environmentObject(service)
+                .environmentObject(copilotService)
+                .environmentObject(copilotHistoryService)
+                .environmentObject(glmHistoryService)
+                .environmentObject(kimiHistoryService)
+                .environmentObject(codexHistoryService)
+                .environmentObject(glmService)
+                .environmentObject(kimiService)
+                .environmentObject(codexService)
+                .environmentObject(codexAuthManager)
+                .environmentObject(apiKeyAuthManagers)
+                .environmentObject(minimaxService)
+                .environmentObject(minimaxHistoryService)
+                .environmentObject(updaterManager)
+                .environmentObject(authManager)
+                .environmentObject(statsService)
+                .environmentObject(historyService)
+                .environmentObject(providerStatusService)
+        )
+
+        let appearedView = AnyView(baseView.onAppear(perform: handlePopoverAppear))
+        let latestRecapView = AnyView(appearedView.onReceive(NotificationCenter.default.publisher(for: .openLatestRecap)) { _ in
+            handleOpenLatestRecap()
+        })
+        let forceRefreshView = AnyView(latestRecapView.onReceive(NotificationCenter.default.publisher(for: .forceRefreshAll)) { _ in
+            refreshAllProviders()
+        })
+        let refreshIntervalView = AnyView(forceRefreshView.onChange(of: refreshInterval) { _, _ in
+            restartAllProviders()
+        })
+        let perProviderRefreshView = AnyView(refreshIntervalView.onChange(of: perProviderRefresh) { _, _ in
+            restartAllProviders()
+        })
+        let refreshClaudeView = AnyView(perProviderRefreshView.onChange(of: refreshClaude) { _, _ in
+            restartAllProviders()
+        })
+        let refreshCopilotView = AnyView(refreshClaudeView.onChange(of: refreshCopilot) { _, _ in
+            restartAllProviders()
+        })
+        let refreshGLMView = AnyView(refreshCopilotView.onChange(of: refreshGLM) { _, _ in
+            restartAllProviders()
+        })
+        let refreshKimiView = AnyView(refreshGLMView.onChange(of: refreshKimi) { _, _ in
+            restartAllProviders()
+        })
+        let refreshCodexView = AnyView(refreshKimiView.onChange(of: refreshCodex) { _, _ in
+            restartAllProviders()
+        })
+        let refreshMinimaxView = AnyView(refreshCodexView.onChange(of: refreshMinimax) { _, _ in
+            restartAllProviders()
+        })
+        let providerStatusView = AnyView(refreshMinimaxView.onChange(of: checkProviderStatus) { _, enabled in
+            handleProviderStatusChange(enabled: enabled)
+        })
+        let claudeAuthView = AnyView(providerStatusView.onChange(of: authManager.isAuthenticated) { _, isAuth in
+            handleClaudeAuthenticationChange(isAuthenticated: isAuth)
+        })
+        let claudeAccountView = AnyView(claudeAuthView.onChange(of: authManager.activeAccountId) { _, _ in
+            Task { await service.fetch() }
+        })
+        let glmAccountView = AnyView(claudeAccountView.onChange(of: glmAuthManager.activeAccountId) { _, _ in
+            Task { await glmService.fetch() }
+        })
+        let kimiAccountView = AnyView(glmAccountView.onChange(of: kimiAuthManager.activeAccountId) { _, _ in
+            Task { await kimiService.fetch() }
+        })
+        let codexAuthView = AnyView(kimiAccountView.onChange(of: codexAuthManager.isAuthenticated) { _, isAuth in
+            handleCodexAuthenticationChange(isAuthenticated: isAuth)
+        })
+        let codexAccountView = AnyView(codexAuthView.onChange(of: codexAuthManager.activeAccountId) { _, _ in
+            Task { await codexService.fetch() }
+        })
+        return AnyView(codexAccountView.onChange(of: minimaxAuthManager.activeAccountId) { _, _ in
+            Task { await minimaxService.fetch() }
+        })
+    }
+
+    var body: some Scene {
         MenuBarExtra {
             if !hasCompletedOnboarding {
                 OnboardingView(hasCompletedOnboarding: $hasCompletedOnboarding)
             } else {
-                PopoverView(onRefresh: refreshAll)
-                    .environmentObject(service)
-                    .environmentObject(copilotService)
-                    .environmentObject(copilotHistoryService)
-                    .environmentObject(glmHistoryService)
-                    .environmentObject(kimiHistoryService)
-                    .environmentObject(codexHistoryService)
-                    .environmentObject(glmService)
-                    .environmentObject(kimiService)
-                    .environmentObject(codexService)
-                    .environmentObject(codexAuthManager)
-                    .environmentObject(minimaxService)
-                    .environmentObject(minimaxHistoryService)
-                    .environmentObject(updaterManager)
-                    .environmentObject(authManager)
-                    .environmentObject(statsService)
-                    .environmentObject(historyService)
-                    .environmentObject(providerStatusService)
-                    .task {
-                        UNUserNotificationCenter.current().delegate = NotificationDelegate.shared
-                        NotificationManager.shared.requestPermission()
-                        if !keychainUpgraded {
-                            keychainUpgraded = true
-                            if hasCompletedOnboarding {
-                                showKeychainUpgradeAlert()
-                            }
-                        }
-
-                        service.start(interval: interval(for: .claude), authManager: authManager, historyService: historyService)
-                        copilotService.start(interval: interval(for: .copilot), historyService: copilotHistoryService)
-                        glmService.start(interval: interval(for: .glm), historyService: glmHistoryService)
-                        kimiService.start(interval: interval(for: .kimi), historyService: kimiHistoryService)
-                        codexService.start(interval: interval(for: .codex), authManager: codexAuthManager, historyService: codexHistoryService)
-                        minimaxService.start(interval: interval(for: .minimax), historyService: minimaxHistoryService)
-                        statsService.start(interval: interval(for: .claude))
-                        if checkProviderStatus { providerStatusService.start() }
-
-                        if recapService == nil {
-                            recapService = RecapService(quotaHistoryService: historyService, copilotHistoryService: copilotHistoryService)
-                        }
-                        let recapSvc = recapService!
-                        recapSvc.checkAndGenerateRecap(notificationManager: NotificationManager.shared)
-
-                        GlobalHotKeyManager.shared.start()
-
-                        for await _ in NotificationCenter.default.notifications(named: .openLatestRecap) {
-                            let recaps = recapSvc.loadSavedRecaps()
-                            if let latest = recaps.last {
-                                RecapWindowController.show(recap: latest)
-                            }
-                        }
-                    }
-                    .task {
-                        for await _ in NotificationCenter.default.notifications(named: .forceRefreshAll) {
-                            refreshAll()
-                        }
-                    }
-                    .onChange(of: refreshInterval) { _, _ in restartAll() }
-                    .onChange(of: perProviderRefresh) { _, _ in restartAll() }
-                    .onChange(of: refreshClaude) { _, _ in restartAll() }
-                    .onChange(of: refreshCopilot) { _, _ in restartAll() }
-                    .onChange(of: refreshGLM) { _, _ in restartAll() }
-                    .onChange(of: refreshKimi) { _, _ in restartAll() }
-                    .onChange(of: refreshCodex) { _, _ in restartAll() }
-                    .onChange(of: refreshMinimax) { _, _ in restartAll() }
-                    .onChange(of: checkProviderStatus) { _, enabled in
-                        if enabled { providerStatusService.start() } else { providerStatusService.stop() }
-                    }
-                    .onChange(of: authManager.isAuthenticated) { _, isAuth in
-                        if isAuth {
-                            Task { await service.fetch() }
-                        }
-                    }
-                    .onChange(of: codexAuthManager.isAuthenticated) { _, isAuth in
-                        if isAuth {
-                            Task { await codexService.fetch() }
-                        }
-                    }
-                    .onChange(of: codexAuthManager.activeAccountId) { _, _ in
-                        Task { await codexService.fetch() }
-                    }
+                popoverContent()
             }
         } label: {
             let selected = MenuBarProvider(rawValue: menuBarProvider) ?? .claude

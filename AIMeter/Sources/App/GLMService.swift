@@ -5,8 +5,10 @@ final class GLMService: HTTPPollingService {
     @Published var glmData: GLMUsageData = .empty
     // Caller must retain the GLMHistoryService instance; this service holds only a weak reference
     private weak var glmHistoryService: GLMHistoryService?
+    private weak var authManager: APIKeyAuthManager?
 
-    func start(interval: TimeInterval = 60, historyService: GLMHistoryService? = nil) {
+    func start(interval: TimeInterval = 60, authManager: APIKeyAuthManager, historyService: GLMHistoryService? = nil) {
+        self.authManager = authManager
         self.glmHistoryService = historyService
         super.start(interval: interval)
     }
@@ -25,6 +27,9 @@ final class GLMService: HTTPPollingService {
     /// True if key comes from env var (read-only in Settings)
     static var keyIsFromEnvironment: Bool {
         if APIKeyKeychainHelper.glm.readAPIKey() != nil { return false }
+        for accountId in APIKeyKeychainHelper.glm.savedAccountIds() {
+            if APIKeyKeychainHelper.glm.readAPIKey(accountId: accountId) != nil { return false }
+        }
         if let envKey = ProcessInfo.processInfo.environment["GLM_API_KEY"], !envKey.isEmpty {
             return true
         }
@@ -32,7 +37,7 @@ final class GLMService: HTTPPollingService {
     }
 
     override func resolveAPIKey() -> String? {
-        GLMService.resolveAPIKey()
+        authManager?.activeAPIKey ?? GLMService.resolveAPIKey()
     }
 
     override func buildRequest(apiKey: String) -> URLRequest? {

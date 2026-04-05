@@ -3,7 +3,10 @@ import SwiftUI
 struct MinimaxTabView: View {
     @ObservedObject var minimaxService: MinimaxService
     @ObservedObject var historyService: MinimaxHistoryService
+    @EnvironmentObject private var apiKeyAuthManagers: APIKeyAuthManagers
     var onKeySaved: (() -> Void)? = nil
+
+    private var authManager: APIKeyAuthManager { apiKeyAuthManagers.minimax }
 
     var body: some View {
         if minimaxService.error == .noKey {
@@ -12,11 +15,14 @@ struct MinimaxTabView: View {
                 placeholder: "MINIMAX_API_KEY…",
                 accentColor: ProviderTheme.minimax.accentColor
             ) { key in
-                APIKeyKeychainHelper.minimax.saveAPIKey(key)
+                authManager.addAccount(label: "Default", apiKey: key)
                 onKeySaved?()
             }
         } else {
             VStack(spacing: 8) {
+                if authManager.accounts.count > 1 {
+                    accountSwitcher
+                }
                 if case .fetchFailed = minimaxService.error {
                     ErrorBannerView(message: "Failed to fetch MiniMax data") {
                         Task { await minimaxService.fetch() }
@@ -69,5 +75,37 @@ struct MinimaxTabView: View {
         let formatter = DateFormatter()
         formatter.dateFormat = "HH:mm"
         return formatter.string(from: date)
+    }
+
+    private var accountSwitcher: some View {
+        HStack {
+            Menu {
+                ForEach(authManager.accounts) { account in
+                    Button {
+                        authManager.setActiveAccount(account.id)
+                    } label: {
+                        HStack {
+                            Text(account.label)
+                            if account.id == authManager.activeAccountId {
+                                Image(systemName: "checkmark")
+                            }
+                        }
+                    }
+                }
+            } label: {
+                HStack(spacing: 4) {
+                    Text(authManager.activeAccount?.label ?? "")
+                        .font(.system(size: 10))
+                        .foregroundColor(.secondary)
+                        .lineLimit(1)
+                    Image(systemName: "chevron.up.chevron.down")
+                        .font(.system(size: 8))
+                        .foregroundColor(.secondary)
+                }
+            }
+            .menuStyle(.borderlessButton)
+            .fixedSize()
+            Spacer()
+        }
     }
 }

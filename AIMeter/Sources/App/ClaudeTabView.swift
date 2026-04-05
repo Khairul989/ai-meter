@@ -62,6 +62,7 @@ private struct SessionPaceView: View {
 struct ClaudeTabView: View {
     @ObservedObject var service: UsageService
     @ObservedObject var statsService: ClaudeCodeStatsService
+    @EnvironmentObject private var authManager: SessionAuthManager
     let timeZone: TimeZone
     var planName: String?
     var providerStatus: ProviderStatusService.StatusInfo?
@@ -73,6 +74,9 @@ struct ClaudeTabView: View {
                     Text("Claude")
                         .font(.system(size: 13, weight: .semibold))
                         .foregroundColor(.white)
+                    if authManager.accounts.count > 1 {
+                        accountSwitcher
+                    }
                     if let plan = planName {
                         Text(plan)
                             .font(.system(size: 10, weight: .semibold))
@@ -170,5 +174,35 @@ struct ClaudeTabView: View {
                 ModelUsageView(statsService: statsService)
                 TrendChartView(statsService: statsService)
             }
+    }
+
+    @ViewBuilder
+    private var accountSwitcher: some View {
+        Menu {
+            ForEach(authManager.accounts) { account in
+                Button {
+                    authManager.setActiveAccount(account.id)
+                } label: {
+                    HStack {
+                        Text(account.organizationName.isEmpty ? account.id : account.organizationName)
+                        if account.id == authManager.activeAccountId {
+                            Image(systemName: "checkmark")
+                        }
+                    }
+                }
+            }
+        } label: {
+            HStack(spacing: 4) {
+                Text(authManager.activeAccount?.organizationName.isEmpty == false ? (authManager.activeAccount?.organizationName ?? "") : (authManager.activeAccount?.id ?? ""))
+                    .font(.system(size: 10))
+                    .foregroundColor(.secondary)
+                    .lineLimit(1)
+                Image(systemName: "chevron.up.chevron.down")
+                    .font(.system(size: 8))
+                    .foregroundColor(.secondary)
+            }
+        }
+        .menuStyle(.borderlessButton)
+        .fixedSize()
     }
 }

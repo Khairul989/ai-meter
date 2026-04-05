@@ -34,6 +34,9 @@ struct SettingsView: View {
     @ObservedObject var updaterManager: UpdaterManager
     @ObservedObject var authManager: SessionAuthManager
     @ObservedObject var codexAuthManager: CodexAuthManager
+    @ObservedObject var glmAuthManager: APIKeyAuthManager
+    @ObservedObject var kimiAuthManager: APIKeyAuthManager
+    @ObservedObject var minimaxAuthManager: APIKeyAuthManager
     @ObservedObject var historyService: QuotaHistoryService
     @ObservedObject var copilotHistoryService: CopilotHistoryService
 
@@ -100,7 +103,13 @@ struct SettingsView: View {
     private func contentForSection(_ section: SettingsSection) -> some View {
         switch section {
         case .accounts:
-            AccountsSettingsSection(authManager: authManager, codexAuthManager: codexAuthManager)
+            AccountsSettingsSection(
+                authManager: authManager,
+                codexAuthManager: codexAuthManager,
+                glmAuthManager: glmAuthManager,
+                kimiAuthManager: kimiAuthManager,
+                minimaxAuthManager: minimaxAuthManager
+            )
         case .display:
             DisplaySettingsSection()
         case .notifications:
@@ -122,26 +131,42 @@ struct SettingsView: View {
 struct AccountsSettingsSection: View {
     @ObservedObject var authManager: SessionAuthManager
     @ObservedObject var codexAuthManager: CodexAuthManager
+    @ObservedObject var glmAuthManager: APIKeyAuthManager
+    @ObservedObject var kimiAuthManager: APIKeyAuthManager
+    @ObservedObject var minimaxAuthManager: APIKeyAuthManager
 
     @AppStorage("hidePersonalInfo") private var hidePersonalInfo: Bool = false
 
     @State private var showSignOutConfirmation = false
-    @State private var glmKeyInput: String = ""
-    @State private var glmKeySaved: Bool = false
-    @State private var kimiKeyInput: String = ""
-    @State private var kimiKeySaved: Bool = false
-    @State private var minimaxKeyInput: String = ""
-    @State private var minimaxKeySaved: Bool = false
+    @State private var signOutTargetAccountId: String?
     @State private var showCodexSignOutConfirmation = false
+    @State private var codexSignOutTargetAccountId: String?
+    @State private var glmLabelInput = ""
+    @State private var glmKeyInput = ""
+    @State private var kimiLabelInput = ""
+    @State private var kimiKeyInput = ""
+    @State private var minimaxLabelInput = ""
+    @State private var minimaxKeyInput = ""
 
     var body: some View {
-        settingsSectionCard {
-            VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 12) {
+            settingsSectionCard {
                 Toggle("Hide personal information", isOn: $hidePersonalInfo)
                     .font(.system(size: 12))
+            }
 
-                Divider().opacity(0.3)
+            claudeCard
+            glmCard
+            kimiCard
+            minimaxCard
+            codexCard
+            copilotCard
+        }
+    }
 
+    private var claudeCard: some View {
+        settingsSectionCard {
+            VStack(alignment: .leading, spacing: 8) {
                 HStack(spacing: 6) {
                     Image(systemName: "person.crop.circle.fill")
                         .font(.system(size: 11))
@@ -151,191 +176,184 @@ struct AccountsSettingsSection: View {
                         .foregroundColor(.secondary)
                 }
 
-                if authManager.isAuthenticated {
+                ForEach(authManager.accounts) { account in
                     HStack {
-                        Image(systemName: "checkmark.circle.fill")
-                            .foregroundColor(.green)
+                        Image(systemName: account.id == authManager.activeAccountId ? "checkmark.circle.fill" : "circle")
+                            .foregroundColor(account.id == authManager.activeAccountId ? .green : .secondary)
                             .font(.system(size: 12))
                         VStack(alignment: .leading, spacing: 1) {
                             Text("Signed in")
                                 .font(.system(size: 12))
                                 .foregroundColor(.white)
-                            if let name = PersonalInfoRedactor.conditionalRedact(authManager.organizationName, hideInfo: hidePersonalInfo) {
-                                Text(name)
-                                    .font(.system(size: 10))
-                                    .foregroundColor(.secondary)
-                            }
+                            Text(PersonalInfoRedactor.conditionalRedact(account.organizationName, hideInfo: hidePersonalInfo) ?? account.id)
+                                .font(.system(size: 10))
+                                .foregroundColor(.secondary)
                         }
                         Spacer()
+                        if authManager.accounts.count > 1 && account.id != authManager.activeAccountId {
+                            Button("Switch") {
+                                authManager.setActiveAccount(account.id)
+                            }
+                            .font(.system(size: 10))
+                            .buttonStyle(.plain)
+                            .foregroundColor(.accentColor)
+                        }
                         Button("Sign Out") {
+                            signOutTargetAccountId = account.id
                             showSignOutConfirmation = true
                         }
                         .font(.system(size: 11))
                         .buttonStyle(.plain)
                         .foregroundColor(.red)
                     }
-                } else {
-                    Button("Sign in with Claude") {
-                        authManager.openLoginWindow()
-                    }
-                    .font(.system(size: 12))
-                    .buttonStyle(.plain)
-                    .foregroundColor(.accentColor)
-                    .disabled(authManager.isLoggingIn)
                 }
+
+                Button {
+                    authManager.openLoginWindow()
+                } label: {
+                    Label("Add Account", systemImage: "plus")
+                        .font(.system(size: 11))
+                }
+                .buttonStyle(.plain)
+                .foregroundColor(.accentColor)
+                .disabled(authManager.isLoggingIn)
 
                 if let error = authManager.lastError {
                     Text(error)
                         .font(.system(size: 10))
                         .foregroundColor(.red)
                 }
+            }
+        }
+        .confirmationDialog("Sign out of Claude?", isPresented: $showSignOutConfirmation) {
+            Button("Sign Out", role: .destructive) {
+                if let id = signOutTargetAccountId {
+                    authManager.signOut(accountId: id)
+                }
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("You'll need to sign in again to view usage data.")
+        }
+    }
 
-                Divider().opacity(0.3)
-
+    private func apiKeyCard(
+        title: String,
+        authManager: APIKeyAuthManager,
+        envVarName: String,
+        isEnvKey: Bool,
+        labelInput: Binding<String>,
+        keyInput: Binding<String>
+    ) -> some View {
+        settingsSectionCard {
+            VStack(alignment: .leading, spacing: 8) {
                 HStack(spacing: 6) {
                     Image(systemName: "key.fill")
                         .font(.system(size: 11))
                         .foregroundColor(.secondary)
-                    Text("GLM API Key")
+                    Text(title)
                         .font(.system(size: 11, weight: .medium))
                         .foregroundColor(.secondary)
                 }
 
-                if GLMService.keyIsFromEnvironment {
-                    Text("Using GLM_API_KEY from environment")
+                if isEnvKey {
+                    Text("Using \(envVarName) from environment")
                         .font(.system(size: 11))
                         .foregroundColor(.secondary)
                         .italic()
-                } else if APIKeyKeychainHelper.glm.readAPIKey() != nil && glmKeyInput.isEmpty {
+                }
+
+                ForEach(authManager.accounts) { account in
                     HStack {
-                        Text("••••••••")
+                        Image(systemName: account.id == authManager.activeAccountId ? "checkmark.circle.fill" : "circle")
+                            .foregroundColor(account.id == authManager.activeAccountId ? .green : .secondary)
                             .font(.system(size: 12))
+                        Text(account.label)
+                            .font(.system(size: 12))
+                            .foregroundColor(.white)
+                        Text("••••••••")
+                            .font(.system(size: 10))
                             .foregroundColor(.secondary)
                         Spacer()
-                        Button("Clear") {
-                            APIKeyKeychainHelper.glm.deleteAPIKey()
-                            glmKeySaved = false
+                        if authManager.accounts.count > 1 && account.id != authManager.activeAccountId {
+                            Button("Switch") {
+                                authManager.setActiveAccount(account.id)
+                            }
+                            .font(.system(size: 10))
+                            .buttonStyle(.plain)
+                            .foregroundColor(.accentColor)
+                        }
+                        Button("Remove") {
+                            authManager.removeAccount(id: account.id)
                         }
                         .font(.system(size: 11))
                         .buttonStyle(.plain)
                         .foregroundColor(.red)
                     }
-                } else {
-                    HStack {
-                        SecureField("Paste API key…", text: $glmKeyInput)
+                }
+
+                if !isEnvKey {
+                    HStack(spacing: 6) {
+                        TextField("Label", text: labelInput)
+                            .font(.system(size: 11))
+                            .textFieldStyle(.plain)
+                            .frame(width: 80)
+                        SecureField("Paste API key…", text: keyInput)
                             .font(.system(size: 12))
                             .textFieldStyle(.plain)
-                        if !glmKeyInput.isEmpty {
-                            Button(glmKeySaved ? "Saved ✓" : "Save") {
-                                APIKeyKeychainHelper.glm.saveAPIKey(glmKeyInput)
-                                glmKeySaved = true
-                                glmKeyInput = ""
+                        if !keyInput.wrappedValue.isEmpty {
+                            Button("Save") {
+                                let label = labelInput.wrappedValue.isEmpty ? "Default" : labelInput.wrappedValue
+                                authManager.addAccount(label: label, apiKey: keyInput.wrappedValue)
+                                labelInput.wrappedValue = ""
+                                keyInput.wrappedValue = ""
                             }
                             .font(.system(size: 11))
                             .buttonStyle(.plain)
-                            .foregroundColor(glmKeySaved ? .green : .accentColor)
+                            .foregroundColor(.accentColor)
                         }
                     }
                 }
+            }
+        }
+    }
 
-                Divider().opacity(0.3)
+    private var glmCard: some View {
+        apiKeyCard(
+            title: "GLM API Key",
+            authManager: glmAuthManager,
+            envVarName: "GLM_API_KEY",
+            isEnvKey: GLMService.keyIsFromEnvironment,
+            labelInput: $glmLabelInput,
+            keyInput: $glmKeyInput
+        )
+    }
 
-                HStack(spacing: 6) {
-                    Image(systemName: "key.fill")
-                        .font(.system(size: 11))
-                        .foregroundColor(.secondary)
-                    Text("Kimi API Key")
-                        .font(.system(size: 11, weight: .medium))
-                        .foregroundColor(.secondary)
-                }
+    private var kimiCard: some View {
+        apiKeyCard(
+            title: "Kimi API Key",
+            authManager: kimiAuthManager,
+            envVarName: "KIMI_API_KEY",
+            isEnvKey: KimiService.keyIsFromEnvironment,
+            labelInput: $kimiLabelInput,
+            keyInput: $kimiKeyInput
+        )
+    }
 
-                if KimiService.keyIsFromEnvironment {
-                    Text("Using KIMI_API_KEY from environment")
-                        .font(.system(size: 11))
-                        .foregroundColor(.secondary)
-                        .italic()
-                } else if APIKeyKeychainHelper.kimi.readAPIKey() != nil && kimiKeyInput.isEmpty {
-                    HStack {
-                        Text("••••••••")
-                            .font(.system(size: 12))
-                            .foregroundColor(.secondary)
-                        Spacer()
-                        Button("Clear") {
-                            APIKeyKeychainHelper.kimi.deleteAPIKey()
-                            kimiKeySaved = false
-                        }
-                        .font(.system(size: 11))
-                        .buttonStyle(.plain)
-                        .foregroundColor(.red)
-                    }
-                } else {
-                    HStack {
-                        SecureField("Paste API key…", text: $kimiKeyInput)
-                            .font(.system(size: 12))
-                            .textFieldStyle(.plain)
-                        if !kimiKeyInput.isEmpty {
-                            Button(kimiKeySaved ? "Saved ✓" : "Save") {
-                                APIKeyKeychainHelper.kimi.saveAPIKey(kimiKeyInput)
-                                kimiKeySaved = true
-                                kimiKeyInput = ""
-                            }
-                            .font(.system(size: 11))
-                            .buttonStyle(.plain)
-                            .foregroundColor(kimiKeySaved ? .green : .accentColor)
-                        }
-                    }
-                }
+    private var minimaxCard: some View {
+        apiKeyCard(
+            title: "MiniMax API Key",
+            authManager: minimaxAuthManager,
+            envVarName: "MINIMAX_API_KEY",
+            isEnvKey: MinimaxService.keyIsFromEnvironment,
+            labelInput: $minimaxLabelInput,
+            keyInput: $minimaxKeyInput
+        )
+    }
 
-                Divider().opacity(0.3)
-
-                HStack(spacing: 6) {
-                    Image(systemName: "key.fill")
-                        .font(.system(size: 11))
-                        .foregroundColor(.secondary)
-                    Text("MiniMax API Key")
-                        .font(.system(size: 11, weight: .medium))
-                        .foregroundColor(.secondary)
-                }
-
-                if MinimaxService.keyIsFromEnvironment {
-                    Text("Using MINIMAX_API_KEY from environment")
-                        .font(.system(size: 11))
-                        .foregroundColor(.secondary)
-                        .italic()
-                } else if APIKeyKeychainHelper.minimax.readAPIKey() != nil && minimaxKeyInput.isEmpty {
-                    HStack {
-                        Text("••••••••")
-                            .font(.system(size: 12))
-                            .foregroundColor(.secondary)
-                        Spacer()
-                        Button("Clear") {
-                            APIKeyKeychainHelper.minimax.deleteAPIKey()
-                            minimaxKeySaved = false
-                        }
-                        .font(.system(size: 11))
-                        .buttonStyle(.plain)
-                        .foregroundColor(.red)
-                    }
-                } else {
-                    HStack {
-                        SecureField("Paste API key…", text: $minimaxKeyInput)
-                            .font(.system(size: 12))
-                            .textFieldStyle(.plain)
-                        if !minimaxKeyInput.isEmpty {
-                            Button(minimaxKeySaved ? "Saved ✓" : "Save") {
-                                APIKeyKeychainHelper.minimax.saveAPIKey(minimaxKeyInput)
-                                minimaxKeySaved = true
-                                minimaxKeyInput = ""
-                            }
-                            .font(.system(size: 11))
-                            .buttonStyle(.plain)
-                            .foregroundColor(minimaxKeySaved ? .green : .accentColor)
-                        }
-                    }
-                }
-
-                Divider().opacity(0.3)
-
+    private var codexCard: some View {
+        settingsSectionCard {
+            VStack(alignment: .leading, spacing: 8) {
                 HStack(spacing: 6) {
                     Image(systemName: "person.crop.circle.fill")
                         .font(.system(size: 11))
@@ -345,34 +363,53 @@ struct AccountsSettingsSection: View {
                         .foregroundColor(.secondary)
                 }
 
-                if codexAuthManager.isAuthenticated {
+                ForEach(codexAuthManager.accounts) { account in
                     HStack {
-                        Image(systemName: "checkmark.circle.fill")
-                            .foregroundColor(.green)
+                        Image(systemName: account.id == codexAuthManager.activeAccountId ? "checkmark.circle.fill" : "circle")
+                            .foregroundColor(account.id == codexAuthManager.activeAccountId ? .green : .secondary)
                             .font(.system(size: 12))
                         VStack(alignment: .leading, spacing: 1) {
                             Text("Signed in")
                                 .font(.system(size: 12))
                                 .foregroundColor(.white)
-                            if let email = PersonalInfoRedactor.conditionalRedact(codexAuthManager.email, hideInfo: hidePersonalInfo) {
-                                Text(email)
-                                    .font(.system(size: 10))
-                                    .foregroundColor(.secondary)
-                            }
+                            Text(PersonalInfoRedactor.conditionalRedact(account.email, hideInfo: hidePersonalInfo) ?? account.id)
+                                .font(.system(size: 10))
+                                .foregroundColor(.secondary)
                         }
                         Spacer()
+                        if codexAuthManager.accounts.count > 1 && account.id != codexAuthManager.activeAccountId {
+                            Button("Switch") {
+                                codexAuthManager.setActiveAccount(account.id)
+                            }
+                            .font(.system(size: 10))
+                            .buttonStyle(.plain)
+                            .foregroundColor(.accentColor)
+                        }
                         Button("Sign Out") {
+                            codexSignOutTargetAccountId = account.id
                             showCodexSignOutConfirmation = true
                         }
                         .font(.system(size: 11))
                         .buttonStyle(.plain)
                         .foregroundColor(.red)
                     }
-                } else {
+                }
+
+                if codexAuthManager.accounts.isEmpty {
                     Button("Sign in with ChatGPT") {
                         codexAuthManager.openLoginWindow()
                     }
                     .font(.system(size: 12))
+                    .buttonStyle(.plain)
+                    .foregroundColor(.accentColor)
+                    .disabled(codexAuthManager.isLoggingIn)
+                } else {
+                    Button {
+                        codexAuthManager.openLoginWindow()
+                    } label: {
+                        Label("Add Account", systemImage: "plus")
+                            .font(.system(size: 11))
+                    }
                     .buttonStyle(.plain)
                     .foregroundColor(.accentColor)
                     .disabled(codexAuthManager.isLoggingIn)
@@ -385,21 +422,34 @@ struct AccountsSettingsSection: View {
                 }
             }
         }
-        .confirmationDialog("Sign out of Claude?", isPresented: $showSignOutConfirmation) {
-            Button("Sign Out", role: .destructive) {
-                authManager.signOut()
-            }
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text("You'll need to sign in again to view usage data.")
-        }
         .confirmationDialog("Sign out of Codex?", isPresented: $showCodexSignOutConfirmation) {
             Button("Sign Out", role: .destructive) {
-                codexAuthManager.signOut()
+                if let id = codexSignOutTargetAccountId {
+                    codexAuthManager.signOut(accountId: id)
+                }
             }
             Button("Cancel", role: .cancel) {}
         } message: {
             Text("You'll need to sign in again to view Codex usage data.")
+        }
+    }
+
+    private var copilotCard: some View {
+        settingsSectionCard {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(spacing: 6) {
+                    Image(systemName: "person.crop.circle.fill")
+                        .font(.system(size: 11))
+                        .foregroundColor(.secondary)
+                    Text("Copilot")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundColor(.secondary)
+                }
+                Text("Managed by GitHub CLI")
+                    .font(.system(size: 11))
+                    .foregroundColor(.secondary)
+                    .italic()
+            }
         }
     }
 }

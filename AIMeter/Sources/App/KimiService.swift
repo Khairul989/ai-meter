@@ -5,8 +5,10 @@ final class KimiService: HTTPPollingService {
     @Published var kimiData: KimiUsageData = .empty
     // Caller must retain the KimiHistoryService instance; this service holds only a weak reference
     private weak var kimiHistoryService: KimiHistoryService?
+    private weak var authManager: APIKeyAuthManager?
 
-    func start(interval: TimeInterval = 60, historyService: KimiHistoryService? = nil) {
+    func start(interval: TimeInterval = 60, authManager: APIKeyAuthManager, historyService: KimiHistoryService? = nil) {
+        self.authManager = authManager
         self.kimiHistoryService = historyService
         super.start(interval: interval)
     }
@@ -25,6 +27,9 @@ final class KimiService: HTTPPollingService {
     /// True if key comes from env var (read-only in Settings)
     static var keyIsFromEnvironment: Bool {
         if APIKeyKeychainHelper.kimi.readAPIKey() != nil { return false }
+        for accountId in APIKeyKeychainHelper.kimi.savedAccountIds() {
+            if APIKeyKeychainHelper.kimi.readAPIKey(accountId: accountId) != nil { return false }
+        }
         if let envKey = ProcessInfo.processInfo.environment["KIMI_API_KEY"], !envKey.isEmpty {
             return true
         }
@@ -32,7 +37,7 @@ final class KimiService: HTTPPollingService {
     }
 
     override func resolveAPIKey() -> String? {
-        KimiService.resolveAPIKey()
+        authManager?.activeAPIKey ?? KimiService.resolveAPIKey()
     }
 
     override func buildRequest(apiKey: String) -> URLRequest? {
