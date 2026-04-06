@@ -509,6 +509,12 @@ final class CodexProxyService: ObservableObject {
 
     private func recordSelectedAccount(_ accountId: String) {
         UserDefaults.standard.set(accountId, forKey: lastRoutedAccountKey)
+        // Notify the UI layer so it can update the active account indicator
+        NotificationCenter.default.post(
+            name: .codexActiveAccountSwitched,
+            object: nil,
+            userInfo: ["accountId": accountId]
+        )
     }
 
     private func parseErrorMessage(from data: Data) -> String? {
@@ -882,3 +888,7 @@ private extension ByteBuffer {
 extension HTTPProxyHandler: @unchecked Sendable {}
 
 extension LocalWebSocketHandler: @unchecked Sendable {}
+
+extension Notification.Name {
+    static let codexActiveAccountSwitched = Notification.Name("CodexActiveAccountSwitched")
+}

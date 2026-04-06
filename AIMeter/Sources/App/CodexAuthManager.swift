@@ -243,6 +243,14 @@ final class CodexAuthManager: ObservableObject {
         proxyStatus = proxyService.status
         accountStates = proxyService.accountStatesSnapshot()
 
+        // Bootstrap: if the proxy previously auto-switched accounts, sync the UI on launch
+        if let lastRouted = UserDefaults.standard.string(forKey: "codexProxyLastRoutedAccountId"),
+           lastRouted != activeAccountId,
+           accounts.contains(where: { $0.id == lastRouted }) {
+            activeAccountId = lastRouted
+            UserDefaults.standard.set(lastRouted, forKey: "codexActiveAccountId")
+        }
+
         proxyService.$status
             .receive(on: DispatchQueue.main)
             .sink { [weak self] status in
@@ -254,6 +262,20 @@ final class CodexAuthManager: ObservableObject {
             .receive(on: DispatchQueue.main)
             .sink { [weak self] states in
                 self?.accountStates = states
+            }
+            .store(in: &cancellables)
+
+        // Keep activeAccountId in sync when the proxy auto-switches accounts (load balancing)
+        NotificationCenter.default.publisher(for: .codexActiveAccountSwitched)
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] notification in
+                guard let self,
+                      let accountId = notification.userInfo?["accountId"] as? String,
+                      accounts.contains(where: { $0.id == accountId }),
+                      activeAccountId != accountId
+                else { return }
+                activeAccountId = accountId
+                UserDefaults.standard.set(accountId, forKey: "codexActiveAccountId")
             }
             .store(in: &cancellables)
     }
