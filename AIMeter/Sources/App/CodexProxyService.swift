@@ -5,6 +5,87 @@ import NIOHTTP1
 import NIOPosix
 import NIOWebSocket
 
+struct CodexAccountRouting {
+    static let defaultRateLimitCooldown: TimeInterval = 60
+    static let unavailableCooldown: TimeInterval = 30
+
+    static func orderedAccountIDs(
+        accountIds: [String],
+        preferredAccountId: String?,
+        lastRoutedAccountId: String?,
+        states: [String: CodexAccountState],
+        excluding excludedIds: Set<String> = [],
+        now: Date = Date()
+    ) -> [String] {
+        let eligible = accountIds.filter { accountId in
+            guard !excludedIds.contains(accountId) else { return false }
+            return isEligible(states[accountId], now: now)
+        }
+
+        guard !eligible.isEmpty else { return [] }
+
+        if let preferredAccountId, eligible.contains(preferredAccountId) {
+            let others = eligible.filter { $0 != preferredAccountId }
+            return [preferredAccountId] + rotate(others, after: lastRoutedAccountId)
+        }
+
+        return rotate(eligible, after: lastRoutedAccountId)
+    }
+
+    static func normalizedState(_ state: CodexAccountState, now: Date = Date()) -> CodexAccountState {
+        switch state.status {
+        case .rateLimited:
+            if let resetAt = state.resetAt, resetAt <= now {
+                return CodexAccountState(status: .ready, resetAt: nil, updatedAt: now, message: nil)
+            }
+        case .unavailable:
+            if now.timeIntervalSince(state.updatedAt) >= unavailableCooldown {
+                return CodexAccountState(status: .ready, resetAt: nil, updatedAt: now, message: nil)
+            }
+        case .ready, .unauthorized:
+            break
+        }
+        return state
+    }
+
+    static func rateLimitedState(
+        retryAfter: TimeInterval?,
+        now: Date = Date(),
+        message: String?
+    ) -> CodexAccountState {
+        let retrySeconds = max(retryAfter ?? defaultRateLimitCooldown, 1)
+        let resetAt = now.addingTimeInterval(retrySeconds)
+        return CodexAccountState(
+            status: .rateLimited,
+            resetAt: resetAt,
+            updatedAt: now,
+            message: message ?? "Retry after \(Int(retrySeconds))s"
+        )
+    }
+
+    private static func isEligible(_ state: CodexAccountState?, now: Date) -> Bool {
+        guard let state else { return true }
+        switch normalizedState(state, now: now).status {
+        case .ready:
+            return true
+        case .rateLimited, .unauthorized, .unavailable:
+            return false
+        }
+    }
+
+    private static func rotate(_ accountIds: [String], after anchorId: String?) -> [String] {
+        guard let anchorId,
+              let anchorIndex = accountIds.firstIndex(of: anchorId),
+              anchorIndex + 1 < accountIds.count
+        else {
+            return accountIds
+        }
+
+        let nextIndex = anchorIndex + 1
+        return Array(accountIds[nextIndex...]) + Array(accountIds[..<nextIndex])
+    }
+}
+
 struct CodexAccountState: Codable, Equatable {
     enum Status: String, Codable {
         case ready
@@ -64,8 +145,10 @@ final class CodexProxyService: ObservableObject {
 
     @Published private(set) var status: Status = .stopped
     @Published private(set) var accountStates: [String: CodexAccountState]
+    private var queuedStates: [String: CodexAccountState] = [:]
 
     private let stateKey = "codexAccountStates"
+    private let lastRoutedAccountKey = "codexProxyLastRoutedAccountId"
     private let port = CodexProxyStore.defaultPort
     private let host = "127.0.0.1"
     private let strippedInboundHeaders: Set<String> = [
@@ -89,8 +172,10 @@ final class CodexProxyService: ObservableObject {
     private init() {
         if let data = UserDefaults.standard.data(forKey: stateKey),
            let states = try? JSONDecoder.appDecoder.decode([String: CodexAccountState].self, from: data) {
+            self.queuedStates = states
             self.accountStates = states
         } else {
+            self.queuedStates = [:]
             self.accountStates = [:]
         }
 
@@ -101,7 +186,7 @@ final class CodexProxyService: ObservableObject {
     }
 
     func accountStatesSnapshot() -> [String: CodexAccountState] {
-        stateQueue.sync { accountStates }
+        stateQueue.sync { queuedStates }
     }
 
     func startIfNeeded() {
@@ -153,15 +238,40 @@ final class CodexProxyService: ObservableObject {
         }
     }
 
-    func setActiveAccount(_ account: CodexAccount?) {
-        if let account {
-            UserDefaults.standard.set(account.id, forKey: "codexActiveAccountId")
-            // Validate account can work and set initial status
-            if activeAccountContext() != nil {
-                let state = CodexAccountState(status: .ready, resetAt: nil, updatedAt: Date(), message: nil)
-                persistState(state, for: account.id)
+    func setAccounts(_ accounts: [CodexAccount], preferredAccountId: String?) {
+        if let preferredAccountId {
+            UserDefaults.standard.set(preferredAccountId, forKey: "codexActiveAccountId")
+        } else {
+            UserDefaults.standard.removeObject(forKey: "codexActiveAccountId")
+        }
+
+        stateQueue.async { [weak self] in
+            guard let self else { return }
+            let validIds = Set(accounts.map(\.id))
+            self.queuedStates = self.queuedStates.filter { validIds.contains($0.key) }
+
+            if let preferredAccountId,
+               self.accountContext(for: preferredAccountId) != nil {
+                self.queuedStates[preferredAccountId] = CodexAccountState(
+                    status: .ready, resetAt: nil, updatedAt: Date(), message: nil
+                )
+                UserDefaults.standard.set(preferredAccountId, forKey: self.lastRoutedAccountKey)
             }
+
+            if let encoded = try? JSONEncoder.appEncoder.encode(self.queuedStates) {
+                UserDefaults.standard.set(encoded, forKey: self.stateKey)
+            }
+            let snapshot = self.queuedStates
+            DispatchQueue.main.async {
+                self.accountStates = snapshot
+            }
+        }
+
+        if let preferredAccountId,
+           accountContext(for: preferredAccountId) != nil {
             startIfNeeded()
+        } else if accounts.isEmpty {
+            stop()
         }
     }
 
@@ -171,13 +281,68 @@ final class CodexProxyService: ObservableObject {
         headers: [(String, String)],
         body: Data
     ) async throws -> ForwardedResponse {
-        guard let context = activeAccountContext() else {
-            throw ProxyError.missingActiveAccount
-        }
         guard let upstreamURL = upstreamURL(for: uri, websocket: false) else {
             throw ProxyError.invalidPath
         }
 
+        var attemptedAccountIds = Set<String>()
+        var lastResponse: ForwardedResponse?
+
+        while let context = nextAccountContext(excluding: attemptedAccountIds) {
+            attemptedAccountIds.insert(context.accountId)
+
+            let response = try await performHTTPRequest(
+                method: method,
+                upstreamURL: upstreamURL,
+                headers: headers,
+                body: body,
+                context: context
+            )
+            lastResponse = response
+
+            guard shouldFailover(statusCode: response.statusCode) else {
+                return response
+            }
+        }
+
+        if let lastResponse {
+            return lastResponse
+        }
+
+        throw ProxyError.missingActiveAccount
+    }
+
+    func openUpstreamWebSocket(
+        uri: String,
+        headers: [(String, String)]
+    ) throws -> (URLSessionWebSocketTask, ActiveAccountContext) {
+        // TODO: No failover for WebSocket — account context captured at handshake time.
+        // Mid-session failover would require LocalWebSocketHandler to re-establish upstream.
+        guard let context = nextAccountContext(excluding: []) else {
+            throw ProxyError.missingActiveAccount
+        }
+        guard let upstreamURL = upstreamURL(for: uri, websocket: true) else {
+            throw ProxyError.invalidPath
+        }
+
+        var request = URLRequest(url: upstreamURL)
+        buildWebSocketHeaders(from: headers, context: context).forEach { name, value in
+            request.setValue(value, forHTTPHeaderField: name)
+        }
+
+        recordSelectedAccount(context.accountId)
+        let task = urlSession.webSocketTask(with: request)
+        task.resume()
+        return (task, context)
+    }
+
+    private func performHTTPRequest(
+        method: String,
+        upstreamURL: URL,
+        headers: [(String, String)],
+        body: Data,
+        context: ActiveAccountContext
+    ) async throws -> ForwardedResponse {
         var request = URLRequest(url: upstreamURL)
         request.httpMethod = method
         request.httpBody = body.isEmpty ? nil : body
@@ -187,12 +352,14 @@ final class CodexProxyService: ObservableObject {
             request.setValue(value, forHTTPHeaderField: name)
         }
 
+        recordSelectedAccount(context.accountId)
+
         let (data, response) = try await urlSession.data(for: request)
         guard let httpResponse = response as? HTTPURLResponse else {
             throw ProxyError.invalidResponse
         }
 
-        updateState(for: context.accountId, response: httpResponse, message: nil)
+        updateState(for: context.accountId, response: httpResponse, message: parseErrorMessage(from: data))
 
         let reason = HTTPURLResponse.localizedString(forStatusCode: httpResponse.statusCode).capitalized
         let responseHeaders = httpResponse.allHeaderFields.compactMap { key, value -> (String, String)? in
@@ -206,27 +373,6 @@ final class CodexProxyService: ObservableObject {
             headers: responseHeaders,
             body: data
         )
-    }
-
-    func openUpstreamWebSocket(
-        uri: String,
-        headers: [(String, String)]
-    ) throws -> (URLSessionWebSocketTask, ActiveAccountContext) {
-        guard let context = activeAccountContext() else {
-            throw ProxyError.missingActiveAccount
-        }
-        guard let upstreamURL = upstreamURL(for: uri, websocket: true) else {
-            throw ProxyError.invalidPath
-        }
-
-        var request = URLRequest(url: upstreamURL)
-        buildWebSocketHeaders(from: headers, context: context).forEach { name, value in
-            request.setValue(value, forHTTPHeaderField: name)
-        }
-
-        let task = urlSession.webSocketTask(with: request)
-        task.resume()
-        return (task, context)
     }
 
     private static let httpProxyHandlerName = "aimeter.httpProxy"
@@ -276,13 +422,7 @@ final class CodexProxyService: ObservableObject {
         case 401:
             nextState = CodexAccountState(status: .unauthorized, resetAt: nil, updatedAt: Date(), message: message)
         case 429:
-            let resetAt = retryAfter.map { Date().addingTimeInterval($0) }
-            nextState = CodexAccountState(
-                status: .rateLimited,
-                resetAt: resetAt,
-                updatedAt: Date(),
-                message: message ?? "Retry after \(Int(retryAfter ?? 0))s"
-            )
+            nextState = CodexAccountRouting.rateLimitedState(retryAfter: retryAfter, message: message)
         default:
             nextState = CodexAccountState(status: .unavailable, resetAt: nil, updatedAt: Date(), message: message)
         }
@@ -297,21 +437,53 @@ final class CodexProxyService: ObservableObject {
 
     private func persistState(_ state: CodexAccountState, for accountId: String) {
         stateQueue.async {
-            self.accountStates[accountId] = state
-            if let encoded = try? JSONEncoder.appEncoder.encode(self.accountStates) {
+            self.queuedStates[accountId] = state
+            if let encoded = try? JSONEncoder.appEncoder.encode(self.queuedStates) {
                 UserDefaults.standard.set(encoded, forKey: self.stateKey)
             }
-            let snapshot = self.accountStates
+            let snapshot = self.queuedStates
             DispatchQueue.main.async {
                 self.accountStates = snapshot
             }
         }
     }
 
-    private func activeAccountContext() -> ActiveAccountContext? {
-        guard let accountId = UserDefaults.standard.string(forKey: "codexActiveAccountId"),
-              let accessToken = CodexSessionKeychain.read(account: .accessToken, accountId: accountId)
-        else {
+    private func nextAccountContext(excluding excludedAccountIds: Set<String>) -> ActiveAccountContext? {
+        let accountIds = CodexSessionKeychain.savedAccountIds()
+        let preferredAccountId = UserDefaults.standard.string(forKey: "codexActiveAccountId")
+        let lastRoutedAccountId = UserDefaults.standard.string(forKey: lastRoutedAccountKey)
+        let states = accountStatesSnapshot()
+        let now = Date()
+
+        let normalizedStates = states.mapValues { CodexAccountRouting.normalizedState($0, now: now) }
+        let changed = normalizedStates.filter { normalizedStates[$0.key] != states[$0.key] }
+        if !changed.isEmpty {
+            stateQueue.async {
+                for (accountId, state) in changed {
+                    self.queuedStates[accountId] = state
+                }
+                if let encoded = try? JSONEncoder.appEncoder.encode(self.queuedStates) {
+                    UserDefaults.standard.set(encoded, forKey: self.stateKey)
+                }
+                let snapshot = self.queuedStates
+                DispatchQueue.main.async { self.accountStates = snapshot }
+            }
+        }
+
+        let orderedAccountIds = CodexAccountRouting.orderedAccountIDs(
+            accountIds: accountIds,
+            preferredAccountId: preferredAccountId,
+            lastRoutedAccountId: lastRoutedAccountId,
+            states: normalizedStates,
+            excluding: excludedAccountIds,
+            now: now
+        )
+
+        return orderedAccountIds.lazy.compactMap(accountContext(for:)).first
+    }
+
+    private func accountContext(for accountId: String) -> ActiveAccountContext? {
+        guard let accessToken = CodexSessionKeychain.read(account: .accessToken, accountId: accountId) else {
             return nil
         }
 
@@ -329,6 +501,34 @@ final class CodexProxyService: ObservableObject {
             chatGPTAccountId: chatGPTAccountId,
             accessToken: accessToken
         )
+    }
+
+    private func shouldFailover(statusCode: Int) -> Bool {
+        statusCode == 401 || statusCode == 429
+    }
+
+    private func recordSelectedAccount(_ accountId: String) {
+        UserDefaults.standard.set(accountId, forKey: lastRoutedAccountKey)
+    }
+
+    private func parseErrorMessage(from data: Data) -> String? {
+        guard !data.isEmpty,
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+        else {
+            return nil
+        }
+
+        if let error = json["error"] as? [String: Any],
+           let message = error["message"] as? String,
+           !message.isEmpty {
+            return message
+        }
+
+        if let message = json["message"] as? String, !message.isEmpty {
+            return message
+        }
+
+        return nil
     }
 
     private func upstreamURL(for uri: String, websocket: Bool) -> URL? {

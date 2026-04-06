@@ -363,6 +363,12 @@ struct AccountsSettingsSection: View {
                         .foregroundColor(.secondary)
                 }
 
+                if codexAuthManager.isLoadBalancingAvailable {
+                    Text("Auto-switches to another signed-in Codex account when the preferred account is rate limited or expired.")
+                        .font(.system(size: 10))
+                        .foregroundColor(.secondary)
+                }
+
                 ForEach(codexAuthManager.accounts) { account in
                     HStack {
                         Image(systemName: account.id == codexAuthManager.activeAccountId ? "checkmark.circle.fill" : "circle")

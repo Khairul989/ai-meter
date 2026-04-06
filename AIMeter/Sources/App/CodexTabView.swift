@@ -260,6 +260,11 @@ struct CodexTabView: View {
             Text("Proxy: \(codexAuthManager.proxyStatus.displayText)")
                 .font(.system(size: 10))
                 .foregroundColor(.secondary)
+            if codexAuthManager.isLoadBalancingAvailable {
+                Text("Auto-switch enabled")
+                    .font(.system(size: 10))
+                    .foregroundColor(.secondary)
+            }
             if let state = codexAuthManager.activeAccountState {
                 Text(accountStateText(state))
                     .font(.system(size: 10))

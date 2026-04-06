@@ -5,25 +5,119 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.35.4] - 2026-03-30
-
-### Fixed
-
-- Claude peak hours badge now reflects new schedule: weekdays 5am–11am PT (was 8am–2pm ET promotion)
-- Claude peak hours corrected to 1pm–7pm GMT (was hardcoded to PT), now shows correct time for all user timezone settings (MYT, PST, EST, GMT, CET, JST)
-
-## [1.35.3] - 2026-03-29
-
-### Fixed
-
-- MiniMax weekly quota now shows day and time (e.g. "thu 8:00am") instead of just time
-- MiniMax interval quota now shows countdown format (e.g. "3h 1m") instead of raw time
-
-## [1.35.2] - 2026-03-25
+## [Unreleased]
 
 ### Added
 
-- MiniMax menu bar now shows reset time in classic display mode (e.g. `5h 45% · 3:30pm`)
+- Multi-account support for Claude, GLM, Kimi, and MiniMax with per-provider account cards in Settings
+- Account switchers in provider tabs when multiple accounts are configured
+- Codex load balancing: automatic failover to next available account on 429 rate-limit or 401 unauthorized
+- "Auto-switch enabled" indicator in Codex tab when multiple accounts are configured
+
+### Changed
+
+- Settings > Accounts redesigned around per-provider account management
+- Key storage migrated to account-scoped patterns for Claude and API-key providers
+- Codex proxy failover loop simplified to while-let pattern with natural termination
+- Account state normalization batched into single dispatch for reduced main-thread churn
+
+### Fixed
+
+- Thread-safe account state management using shadow dictionary pattern for `@Published` property
+- Race condition in `setAccounts` where rapid calls could leave stale ready states after sign-out
+
+## [1.39.0] - 2026-04-05
+
+### Changed
+
+- Consolidated app-managed credentials into a single AppKeychain entry to eliminate repeated keychain permission dialogs
+- Standardized local signing around the `AIMeter Dev` self-signed certificate and updated release signing flow
+
+## [1.38.0] - 2026-04-05
+
+### Added
+
+- Codex local proxy service for multi-account token forwarding to the AIMeter-selected account
+
+### Changed
+
+- Disabled Codex WebSocket mode in proxy config and use HTTP/SSE fallback for web-session auth
+
+### Fixed
+
+- Codex account switching now forwards the selected account instead of always using the first logged-in account
+- NIO proxy pipeline cleanup during WebSocket upgrade
+
+## [1.37.0] - 2026-04-05
+
+### Added
+
+- Multi-account Codex support with account-scoped keychain storage and active-account selection
+- Codex account switcher in the tab UI when multiple accounts are available
+
+### Fixed
+
+- Codex login flow now detects ChatGPT session state via async `/api/auth/session` polling
+- Popup webview callbacks no longer corrupt the main login state
+
+## [1.36.0] - 2026-04-04
+
+### Fixed
+
+- Extra Credits card now shows dollar amounts in the full layout instead of hiding them in compact mode
+
+## [1.35.7] - 2026-04-04
+
+### Added
+
+- Claude Extra Credits support now reads inline `extra_usage` data from the `/usage` API, with `/overage_spend_limit` kept as fallback
+
+## [1.35.6] - 2026-03-30
+
+### Changed
+
+- Reissued the release tag after release numbering drift; no code changes from `1.35.5`
+
+## [1.35.5] - 2026-03-30
+
+### Added
+
+- MiniMax menu bar can now show the next reset time in classic display mode
+
+### Fixed
+
+- MiniMax weekly quota reset now shows day and time instead of time only
+- Claude peak hours badge updated to the new weekday schedule and corrected to GMT-based timezone conversion
+
+## [1.35.4] - 2026-03-25
+
+### Changed
+
+- Reissued the release tag after release numbering drift; no code changes from `1.35.3`
+
+## [1.35.3] - 2026-03-25
+
+### Changed
+
+- Reissued the release tag after release numbering drift; no code changes from `1.35.2`
+
+## [1.35.2] - 2026-03-25
+
+### Changed
+
+- Reissued the release tag after release numbering drift; no code changes from `1.35.1`
+
+## [1.35.1] - 2026-03-25
+
+### Fixed
+
+- MiniMax `usage_count` is now treated as remaining quota instead of consumed quota
+
+## [1.35.0] - 2026-03-25
+
+### Added
+
+- MiniMax as a new provider in AIMeter
 
 ## [1.34.2] - 2026-03-22
 

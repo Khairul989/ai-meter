@@ -48,6 +48,7 @@ final class CodexAuthManager: ObservableObject {
     var email: String? { activeAccount?.email }
     var planType: String? { activeAccount?.resolvedPlanType }
     var isProxyRunning: Bool { proxyStatus.isRunning }
+    var isLoadBalancingAvailable: Bool { accounts.count > 1 }
     var activeAccountState: CodexAccountState? {
         guard let activeAccountId else { return nil }
         return accountStates[activeAccountId]
@@ -113,6 +114,7 @@ final class CodexAuthManager: ObservableObject {
         }
 
         accountStates = proxyService.accountStatesSnapshot()
+        syncProxyAccounts()
     }
 
     func saveCredentials(
@@ -185,6 +187,7 @@ final class CodexAuthManager: ObservableObject {
         if activeAccountId == nil || accounts.count == 1 {
             setActiveAccount(accountId)
         }
+        syncProxyAccounts()
         ensureProxyRunning()
         self.lastError = nil
     }
@@ -206,10 +209,10 @@ final class CodexAuthManager: ObservableObject {
                 UserDefaults.standard.removeObject(forKey: "codexActiveAccountId")
             }
         }
-        proxyService.setActiveAccount(activeAccount)
         if accounts.isEmpty {
             proxyService.stop()
         }
+        syncProxyAccounts()
         lastError = nil
     }
 
@@ -217,6 +220,7 @@ final class CodexAuthManager: ObservableObject {
         guard accounts.contains(where: { $0.id == id }) else { return }
         activeAccountId = id
         UserDefaults.standard.set(id, forKey: "codexActiveAccountId")
+        syncProxyAccounts()
         ensureProxyRunning()
     }
 
@@ -257,7 +261,10 @@ final class CodexAuthManager: ObservableObject {
     private func ensureProxyRunning() {
         guard activeAccount != nil else { return }
         proxyService.startIfNeeded()
-        proxyService.setActiveAccount(activeAccount)
+    }
+
+    private func syncProxyAccounts() {
+        proxyService.setAccounts(accounts, preferredAccountId: activeAccountId)
     }
 }
 
