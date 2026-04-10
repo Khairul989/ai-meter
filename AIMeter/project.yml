@@ -35,6 +35,13 @@ targets:
           - WidgetInfo.plist
           - AIMeterWidget.entitlements
           - Assets.xcassets
+          - bin
+    postCompileScripts:
+      - name: Copy token_analyzer binary
+        script: |
+          DEST="${BUILT_PRODUCTS_DIR}/${PRODUCT_NAME}.app/Contents/Resources/token_analyzer"
+          cp "${SRCROOT}/Resources/bin/token_analyzer" "$DEST"
+          chmod +x "$DEST"
     info:
       path: Resources/Info.plist
       properties:
@@ -109,3 +116,13 @@ targets:
       - target: AIMeter
         embed: false
         link: true
+
+schemes:
+  AIMeter:
+    build:
+      targets:
+        AIMeter: all
+    run:
+      config: Debug
+    archive:
+      config: Release

@@ -171,8 +171,26 @@ struct ClaudeTabView: View {
                     )
                 }
 
-                ModelUsageView(statsService: statsService)
-                TrendChartView(statsService: statsService)
+                Button {
+                    AnalyticsWindowController.show()
+                } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: "chart.bar.doc.horizontal")
+                            .font(.system(size: 11))
+                        Text("Claude Code Analytics")
+                            .font(.system(size: 11, weight: .medium))
+                        Spacer()
+                        Image(systemName: "arrow.up.right.square")
+                            .font(.system(size: 9))
+                            .foregroundColor(.secondary)
+                    }
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 9)
+                    .background(Color.white.opacity(0.05))
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                    .foregroundColor(.secondary)
+                }
+                .buttonStyle(.plain)
             }
     }
 

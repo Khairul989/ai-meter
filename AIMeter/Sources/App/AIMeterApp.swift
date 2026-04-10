@@ -104,6 +104,8 @@ struct AIMeterApp: App {
                 minimax: minimaxAuthManager
             )
         )
+        // Pre-warm the analytics binary to eliminate cold-start delay on first load
+        SessionAnalyticsService.warmUp()
     }
 
     private func showKeychainUpgradeAlert() {
