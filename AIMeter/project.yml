@@ -10,8 +10,8 @@ settings:
   base:
     SWIFT_VERSION: "5.9"
     MACOSX_DEPLOYMENT_TARGET: "14.0"
-    MARKETING_VERSION: "1.41.0"
-    CURRENT_PROJECT_VERSION: "65"
+    MARKETING_VERSION: "1.42.0"
+    CURRENT_PROJECT_VERSION: "67"
 
 packages:
   Sparkle:
@@ -20,6 +20,24 @@ packages:
   SwiftNIO:
     url: https://github.com/apple/swift-nio.git
     from: 2.60.0
+
+schemes:
+  AIMeter:
+    build:
+      targets:
+        AIMeter: all
+    run:
+      config: Debug
+    test:
+      config: Debug
+      targets:
+        - AIMeterTests
+    profile:
+      config: Release
+    analyze:
+      config: Debug
+    archive:
+      config: Release
 
 targets:
   AIMeter:
