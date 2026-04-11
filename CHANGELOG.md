@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Account switchers in provider tabs when multiple accounts are configured
 - Codex load balancing: automatic failover to next available account on 429 rate-limit or 401 unauthorized
 - "Auto-switch enabled" indicator in Codex tab when multiple accounts are configured
+- MiniMax quota tab: collapsible model sections with mini progress bar in header; models with active usage auto-expand on load
 
 ### Changed
 
@@ -20,6 +21,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Key storage migrated to account-scoped patterns for Claude and API-key providers
 - Codex proxy failover loop simplified to while-let pattern with natural termination
 - Account state normalization batched into single dispatch for reduced main-thread churn
+- MiniMax quota tab now scrollable with 60% screen-height cap to handle large model lists
 
 ### Fixed
 
