@@ -538,9 +538,16 @@ final class CodexProxyService: ObservableObject {
     }
 
     private func upstreamURL(for uri: String, websocket: Bool) -> URL? {
-        guard uri.hasPrefix("/backend-api/") else { return nil }
-        let base = websocket ? "wss://chatgpt.com" : "https://chatgpt.com"
-        return URL(string: "\(base)\(uri)")
+        if uri.hasPrefix("/backend-api/") {
+            let base = websocket ? "wss://chatgpt.com" : "https://chatgpt.com"
+            return URL(string: "\(base)\(uri)")
+        }
+        // opencode sends /responses or /v1/responses — map to the same Codex endpoint
+        if uri == "/responses" || uri.hasPrefix("/responses?") ||
+           uri == "/v1/responses" || uri.hasPrefix("/v1/responses?") {
+            return URL(string: "https://chatgpt.com/backend-api/codex/responses")
+        }
+        return nil
     }
 
     private func buildHTTPHeaders(

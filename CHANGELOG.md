@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.43.0] - 2026-04-13
+
 ### Added
 
 - Multi-account support for Claude, GLM, Kimi, and MiniMax with per-provider account cards in Settings
@@ -14,6 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Codex load balancing: automatic failover to next available account on 429 rate-limit or 401 unauthorized
 - "Auto-switch enabled" indicator in Codex tab when multiple accounts are configured
 - MiniMax quota tab: collapsible model sections with mini progress bar in header; models with active usage auto-expand on load
+- opencode multi-account support: proxy now handles `/responses` and `/v1/responses` paths, routing them through the Codex load balancer for automatic account failover
 
 ### Changed
 
