@@ -66,6 +66,13 @@ func decodedProviderOrder(_ stored: String) -> [Tab] {
     return parsed + missing
 }
 
+func tabForShortcutDigit(_ digit: String, providerOrder: [Tab]) -> Tab? {
+    guard let shortcutIndex = Int(digit), shortcutIndex >= 1, shortcutIndex <= providerOrder.count else {
+        return nil
+    }
+    return providerOrder[shortcutIndex - 1]
+}
+
 // MARK: - TabIcon
 
 enum TabIcon {
@@ -460,29 +467,19 @@ struct PopoverView: View {
                 }
 
                 guard event.modifierFlags.contains(.command) else { return event }
-                switch event.charactersIgnoringModifiers {
+                let key = event.charactersIgnoringModifiers ?? ""
+                let tabs = decodedProviderOrder(providerTabOrder)
+
+                if let tab = tabForShortcutDigit(key, providerOrder: tabs) {
+                    switchTab(to: tab)
+                    return nil
+                }
+
+                switch key {
                 case "r":
                     onRefresh()
                     return nil
-                case "1":
-                    switchTab(to: .claude)
-                    return nil
-                case "2":
-                    switchTab(to: .copilot)
-                    return nil
-                case "3":
-                    switchTab(to: .glm)
-                    return nil
-                case "4":
-                    switchTab(to: .kimi)
-                    return nil
-                case "5":
-                    switchTab(to: .codex)
-                    return nil
-                case "6":
-                    switchTab(to: .minimax)
-                    return nil
-                case "7", ",":
+                case String(tabs.count + 1), ",":
                     showSettingsWindow()
                     return nil
                 default:

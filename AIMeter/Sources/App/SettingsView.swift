@@ -800,8 +800,8 @@ struct ShortcutsSettingsSection: View {
             VStack(alignment: .leading, spacing: 4) {
                 shortcutRow("⌃⌥A", "Toggle menu bar popover")
                 shortcutRow("⌘R", "Refresh all providers")
-                shortcutRow("⌘1–5", "Jump to provider tab")
-                shortcutRow("⌘6", "Open Settings")
+                shortcutRow("⌘1–6", "Jump to provider tab")
+                shortcutRow("⌘7", "Open Settings")
                 shortcutRow("⌘,", "Open Settings")
                 shortcutRow("← →", "Navigate between tabs")
                 shortcutRow("Esc", "Return from Settings")

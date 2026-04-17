@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Provider number shortcuts now follow the user-defined tab order instead of the original hard-coded provider sequence
+- Release automation rebuilt around stricter preflight checks, changelog-driven notes, configurable signing/repo settings, and safer dry-run behavior
+
+### Fixed
+
+- Settings shortcut reference now matches the actual provider count and uses `⌘7` for Settings when six provider tabs are present
+
 ## [1.43.0] - 2026-04-13
 
 ### Added

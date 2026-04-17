@@ -64,6 +64,31 @@ Updates are checked automatically on launch. You can also check manually via Set
 
 ---
 
+## Release Automation
+
+Build and publish a signed Sparkle release with:
+
+```bash
+./scripts/release.sh v1.43.1
+```
+
+The script will:
+
+- validate the version tag and required tooling
+- bump `MARKETING_VERSION` and `CURRENT_PROJECT_VERSION` in `AIMeter/project.yml`
+- regenerate `AIMeter.xcodeproj` with XcodeGen
+- archive, sign, zip, and generate `appcast.xml`
+- publish a GitHub release with notes pulled from `CHANGELOG.md` when a matching version entry exists
+
+Useful flags:
+
+- `--dry-run` builds artifacts without creating the GitHub release
+- `--allow-dirty` bypasses the clean-worktree guard for local testing
+- `--signing-identity "Your Cert Name"` overrides the default `AIMeter Dev` certificate
+- `--repo owner/repo` publishes to a different GitHub repository
+
+---
+
 ## Configuration
 
 Open the popover from the menu bar icon and click the settings gear in the bottom-right corner.
