@@ -44,7 +44,7 @@ extract_changelog_entry() {
     local semver="$1"
     local changelog_path="$2"
 
-    awk -v header="## [" semver "]" '
+    awk -v header="## [$semver]" '
         index($0, header) == 1 { in_section = 1 }
         /^## \[/ && in_section && index($0, header) != 1 { exit }
         in_section { print }
