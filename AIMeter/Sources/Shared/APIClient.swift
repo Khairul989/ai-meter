@@ -97,6 +97,13 @@ enum APIClient {
             sevenDaySonnet = nil
         }
 
+        let sevenDayDesign: RateLimit?
+        if let dict = json["seven_day_omelette"] as? [String: Any], dict["utilization"] != nil {
+            sevenDayDesign = parseRateLimit(dict)
+        } else {
+            sevenDayDesign = nil
+        }
+
         // Parse extra_usage inline if present and enabled; fallback path will fill this if absent
         let extraCredits: ExtraCredits?
         if let extraDict = json["extra_usage"] as? [String: Any],
@@ -115,6 +122,7 @@ enum APIClient {
             fiveHour: fiveHour,
             sevenDay: sevenDay ?? RateLimit(utilization: 0, resetsAt: nil),
             sevenDaySonnet: sevenDaySonnet,
+            sevenDayDesign: sevenDayDesign,
             extraCredits: extraCredits,
             planName: nil,
             fetchedAt: Date()

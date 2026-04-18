@@ -79,6 +79,7 @@ final class NotificationManagerTests: XCTestCase {
             fiveHour: RateLimit(utilization: 37, resetsAt: nil),
             sevenDay: RateLimit(utilization: 54, resetsAt: nil),
             sevenDaySonnet: nil,
+            sevenDayDesign: nil,
             extraCredits: nil,
             planName: nil,
             fetchedAt: Date()
@@ -96,13 +97,15 @@ final class NotificationManagerTests: XCTestCase {
             fiveHour: RateLimit(utilization: 10, resetsAt: nil),
             sevenDay: RateLimit(utilization: 20, resetsAt: nil),
             sevenDaySonnet: RateLimit(utilization: 80, resetsAt: nil),
+            sevenDayDesign: RateLimit(utilization: 43, resetsAt: nil),
             extraCredits: ExtraCredits(utilization: 50, used: 2500, limit: 5000),
             planName: nil,
             fetchedAt: Date()
         )
         let metrics = NotificationManager.metrics(from: data)
-        XCTAssertEqual(metrics.count, 4)
+        XCTAssertEqual(metrics.count, 5)
         XCTAssertTrue(metrics.contains { $0.key == "claude.sonnet" && $0.utilization == 80 })
+        XCTAssertTrue(metrics.contains { $0.key == "claude.design" && $0.utilization == 43 })
         XCTAssertTrue(metrics.contains { $0.key == "claude.credits" && $0.utilization == 50 })
     }
 
@@ -111,6 +114,7 @@ final class NotificationManagerTests: XCTestCase {
             fiveHour: RateLimit(utilization: 0, resetsAt: nil),
             sevenDay: RateLimit(utilization: 0, resetsAt: nil),
             sevenDaySonnet: nil,
+            sevenDayDesign: nil,
             extraCredits: ExtraCredits(utilization: 50, used: 1000, limit: 5000),
             planName: nil,
             fetchedAt: Date()

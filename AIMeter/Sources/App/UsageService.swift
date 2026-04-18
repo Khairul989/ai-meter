@@ -56,6 +56,7 @@ final class UsageService: PollingServiceBase {
                     fiveHour: data.fiveHour,
                     sevenDay: data.sevenDay,
                     sevenDaySonnet: data.sevenDaySonnet,
+                    sevenDayDesign: data.sevenDayDesign,
                     extraCredits: mergedCredits,
                     planName: extra.planName,
                     fetchedAt: data.fetchedAt

@@ -7,13 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.44.0] - 2026-04-18
+
+### Added
+
+- Claude Design quota card that appears automatically when `seven_day_omelette` is present in the Claude usage response
+
 ### Changed
 
+- Claude Code model labels now use friendly names like `Opus 4.7`, `Sonnet 4.6`, and `Haiku 4.5`
 - Provider number shortcuts now follow the user-defined tab order instead of the original hard-coded provider sequence
 - Release automation rebuilt around stricter preflight checks, changelog-driven notes, configurable signing/repo settings, and safer dry-run behavior
 
 ### Fixed
 
+- Claude Code model and daily usage parsing now recognizes newly launched Claude models like `claude-opus-4-7` without requiring another hardcoded model list update
 - Settings shortcut reference now matches the actual provider count and uses `⌘7` for Settings when six provider tabs are present
 
 ## [1.43.0] - 2026-04-13

@@ -161,6 +161,15 @@ struct ClaudeTabView: View {
                         resetText: ResetTimeFormatter.format(sonnet.resetsAt, style: .dayTime, timeZone: timeZone)
                     )
                 }
+                if let design = data.sevenDayDesign {
+                    UsageCardView(
+                        icon: "paintbrush.pointed.fill",
+                        title: "Claude Design",
+                        subtitle: "Dedicated limit",
+                        percentage: design.utilization,
+                        resetText: ResetTimeFormatter.format(design.resetsAt, style: .dayTime, timeZone: timeZone)
+                    )
+                }
                 if let credits = data.extraCredits {
                     UsageCardView(
                         icon: "creditcard.fill",

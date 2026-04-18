@@ -28,6 +28,9 @@ struct SmallWidgetView: View {
         if let sonnet = data.sevenDaySonnet {
             candidates.append(("Sonnet", sonnet))
         }
+        if let design = data.sevenDayDesign {
+            candidates.append(("Design", design))
+        }
         // Include Copilot premium as a synthetic RateLimit for comparison
         if let copilot = copilotData,
            !copilot.premiumInteractions.unlimited {

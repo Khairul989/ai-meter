@@ -38,13 +38,6 @@ enum TrendRange: String, CaseIterable {
     case thirtyDay = "30D"
 }
 
-/// Latest Claude models to show (others are legacy/deprecated)
-private let latestModels: Set<String> = [
-    "claude-opus-4-6",
-    "claude-sonnet-4-6",
-    "claude-haiku-4-5-20251001"
-]
-
 @MainActor
 final class ClaudeCodeStatsService: PollingServiceBase {
     @Published var models: [ModelTokenUsage] = []
@@ -103,8 +96,9 @@ final class ClaudeCodeStatsService: PollingServiceBase {
     }
 
     func load() {
-        loadAllTime()
         loadDiskCache()
+        loadAllTime()
+        mergeRecentModelsIntoAllTime()
         applyRange()
         applyTrend()
 
@@ -113,7 +107,7 @@ final class ClaudeCodeStatsService: PollingServiceBase {
         let since = lastParseDate
         Task.detached(priority: .utility) { [weak self] in
             let result = Self.parseJSONLFiles(since: since)
-            await MainActor.run {
+            await MainActor.run { [weak self] in
                 guard let self else { return }
                 // Merge token data
                 for (date, models) in result.tokens {
@@ -139,6 +133,7 @@ final class ClaudeCodeStatsService: PollingServiceBase {
                 self.lastParseDate = Date()
                 self.isLoading = false
                 self.isParsing = false
+                self.mergeRecentModelsIntoAllTime()
                 self.applyRange()
                 self.applyTrend()
                 self.saveDiskCache()
@@ -215,13 +210,47 @@ final class ClaudeCodeStatsService: PollingServiceBase {
 
         var result: [String: (input: Int, output: Int)] = [:]
         for (modelId, stats) in modelUsage {
-            guard latestModels.contains(modelId) else { continue }
+            guard Self.isClaudeModel(modelId) else { continue }
             let input = stats["inputTokens"] as? Int ?? 0
             let output = stats["outputTokens"] as? Int ?? 0
             guard input + output > 0 else { continue }
-            result[modelId] = (input, output)
+            let canonicalModelId = Self.canonicalModelID(modelId)
+            let existing = result[canonicalModelId] ?? (0, 0)
+            result[canonicalModelId] = (
+                existing.input + input,
+                existing.output + output
+            )
         }
         allTimeModels = result
+    }
+
+    /// `stats-cache.json` can lag behind newly launched model IDs.
+    /// When that happens, keep recent parsed usage for unseen models so "All"
+    /// still shows them instead of dropping the family entirely.
+    private func mergeRecentModelsIntoAllTime() {
+        guard !dailyCache.isEmpty else { return }
+
+        var merged = allTimeModels
+        var missingRecentModels: [String: (input: Int, output: Int)] = [:]
+
+        for dayModels in dailyCache.values {
+            for (modelId, tokens) in dayModels {
+                guard Self.isClaudeModel(modelId) else { continue }
+                let canonicalModelId = Self.canonicalModelID(modelId)
+                guard merged[canonicalModelId] == nil else { continue }
+                let existing = missingRecentModels[canonicalModelId] ?? (0, 0)
+                missingRecentModels[canonicalModelId] = (
+                    existing.input + tokens.input,
+                    existing.output + tokens.output
+                )
+            }
+        }
+
+        for (modelId, tokens) in missingRecentModels where tokens.input + tokens.output > 0 {
+            merged[modelId] = tokens
+        }
+
+        allTimeModels = merged
     }
 
     // MARK: - JSONL parsing (background)
@@ -284,7 +313,7 @@ final class ClaudeCodeStatsService: PollingServiceBase {
                           obj["type"] as? String == "assistant",
                           let msg = obj["message"] as? [String: Any],
                           let model = msg["model"] as? String,
-                          latestModels.contains(model),
+                          Self.isClaudeModel(model),
                           let usage = msg["usage"] as? [String: Any] else { continue }
 
                     let input = usage["input_tokens"] as? Int ?? 0
@@ -341,8 +370,12 @@ final class ClaudeCodeStatsService: PollingServiceBase {
                 let key = formatter.string(from: date)
                 guard let dayData = dailyCache[key] else { continue }
                 for (model, tokens) in dayData {
-                    let existing = merged[model] ?? (0, 0)
-                    merged[model] = (existing.input + tokens.input, existing.output + tokens.output)
+                    let canonicalModelId = Self.canonicalModelID(model)
+                    let existing = merged[canonicalModelId] ?? (0, 0)
+                    merged[canonicalModelId] = (
+                        existing.input + tokens.input,
+                        existing.output + tokens.output
+                    )
                 }
             }
             aggregated = merged
@@ -393,13 +426,79 @@ final class ClaudeCodeStatsService: PollingServiceBase {
         trendPoints = points
     }
 
-    /// "claude-sonnet-4-6" → "sonnet-4-6", "claude-haiku-4-5-20251001" → "haiku-4-5"
+    /// "claude-sonnet-4-6" → "Sonnet 4.6", "claude-haiku-4-5-20251001" → "Haiku 4.5"
     static func shortName(_ modelId: String) -> String {
-        var name = modelId.replacingOccurrences(of: "claude-", with: "")
-        // Remove date suffixes: "-20251001"
-        if let range = name.range(of: #"-\d{8}$"#, options: .regularExpression) {
-            name = String(name[name.startIndex..<range.lowerBound])
+        let canonical = canonicalModelID(modelId).replacingOccurrences(of: "claude-", with: "")
+        let parts = canonical.split(separator: "-").map(String.init)
+        guard let family = parts.first, !family.isEmpty else { return canonical }
+
+        var index = 1
+        var versionParts: [String] = []
+        while index < parts.count, parts[index].allSatisfy(\.isNumber) {
+            versionParts.append(parts[index])
+            index += 1
         }
-        return name
+
+        let familyLabel = family.prefix(1).uppercased() + family.dropFirst()
+        let versionLabel = versionParts.isEmpty ? nil : versionParts.joined(separator: ".")
+        let suffixLabel = parts[index...]
+            .map { $0.replacingOccurrences(of: "_", with: " ") }
+            .map { part in
+                part.split(separator: " ").map { word in
+                    word.prefix(1).uppercased() + word.dropFirst()
+                }.joined(separator: " ")
+            }
+            .joined(separator: " ")
+
+        return [familyLabel, versionLabel, suffixLabel.isEmpty ? nil : suffixLabel]
+            .compactMap { $0 }
+            .joined(separator: " ")
+    }
+
+    /// Accept any Claude model emitted by Claude Code instead of pinning known IDs.
+    nonisolated static func isClaudeModel(_ modelId: String) -> Bool {
+        modelId.lowercased().hasPrefix("claude-")
+    }
+
+    /// Normalize raw model IDs into stable keys so dated snapshots aggregate together.
+    /// Examples:
+    /// - "claude-haiku-4-5-20251001" -> "claude-haiku-4-5"
+    /// - "claude-3-7-sonnet-20250219" -> "claude-sonnet-3-7"
+    nonisolated static func canonicalModelID(_ modelId: String) -> String {
+        var normalized = modelId.lowercased()
+        if normalized.hasPrefix("claude-") {
+            normalized.removeFirst("claude-".count)
+        }
+
+        if let range = normalized.range(of: #"-\d{8}$"#, options: .regularExpression) {
+            normalized = String(normalized[..<range.lowerBound])
+        }
+
+        if let match = normalized.range(
+            of: #"^(\d+(?:-\d+)*)-(opus|sonnet|haiku)(-.+)?$"#,
+            options: .regularExpression
+        ) {
+            let body = String(normalized[match])
+            let pattern = try? NSRegularExpression(
+                pattern: #"^(\d+(?:-\d+)*)-(opus|sonnet|haiku)(-.+)?$"#
+            )
+            let fullRange = NSRange(body.startIndex..<body.endIndex, in: body)
+            if let regex = pattern,
+               let result = regex.firstMatch(in: body, options: [], range: fullRange),
+               let versionRange = Range(result.range(at: 1), in: body),
+               let familyRange = Range(result.range(at: 2), in: body) {
+                let version = body[versionRange]
+                let family = body[familyRange]
+                let suffix: String
+                if let suffixRange = Range(result.range(at: 3), in: body) {
+                    suffix = String(body[suffixRange])
+                } else {
+                    suffix = ""
+                }
+                normalized = "\(family)-\(version)\(suffix)"
+            }
+        }
+
+        return "claude-\(normalized)"
     }
 }

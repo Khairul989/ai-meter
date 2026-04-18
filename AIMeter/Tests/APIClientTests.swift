@@ -7,13 +7,15 @@ final class APIClientTests: XCTestCase {
         {
             "five_hour": {"utilization": 37, "resets_at": "2026-02-26T10:00:00.000Z"},
             "seven_day": {"utilization": 54, "resets_at": "2026-02-27T03:00:00.000Z"},
-            "seven_day_sonnet": {"utilization": 3, "resets_at": "2026-02-27T04:00:00.000Z"}
+            "seven_day_sonnet": {"utilization": 3, "resets_at": "2026-02-27T04:00:00.000Z"},
+            "seven_day_omelette": {"utilization": 43, "resets_at": "2026-02-28T04:00:00.000Z"}
         }
         """.data(using: .utf8)!
         let usage = try APIClient.parseResponse(json)
         XCTAssertEqual(usage.fiveHour.utilization, 37)
         XCTAssertEqual(usage.sevenDay.utilization, 54)
         XCTAssertEqual(usage.sevenDaySonnet?.utilization, 3)
+        XCTAssertEqual(usage.sevenDayDesign?.utilization, 43)
         XCTAssertNil(usage.extraCredits) // fetched separately
     }
 
@@ -27,6 +29,7 @@ final class APIClientTests: XCTestCase {
         let usage = try APIClient.parseResponse(json)
         XCTAssertEqual(usage.fiveHour.utilization, 10)
         XCTAssertNil(usage.sevenDaySonnet)
+        XCTAssertNil(usage.sevenDayDesign)
         XCTAssertNil(usage.extraCredits)
     }
 

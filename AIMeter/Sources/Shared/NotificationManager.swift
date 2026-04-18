@@ -219,6 +219,14 @@ final class NotificationManager {
                 detail: ResetTimeFormatter.format(sonnet.resetsAt, style: .dayTime, timeZone: .current)
             ))
         }
+        if let design = data.sevenDayDesign {
+            result.append(MetricSnapshot(
+                key: "claude.design",
+                label: "Claude Design",
+                utilization: design.utilization,
+                detail: ResetTimeFormatter.format(design.resetsAt, style: .dayTime, timeZone: .current)
+            ))
+        }
         if let credits = data.extraCredits {
             result.append(MetricSnapshot(
                 key: "claude.credits",

@@ -8,6 +8,7 @@ final class UsageDataTests: XCTestCase {
             "fiveHour": {"utilization": 37, "resetsAt": "2026-02-26T10:00:00Z"},
             "sevenDay": {"utilization": 54, "resetsAt": "2026-02-27T03:00:00Z"},
             "sevenDaySonnet": {"utilization": 3, "resetsAt": "2026-02-27T04:00:00Z"},
+            "sevenDayDesign": {"utilization": 43, "resetsAt": "2026-02-28T04:00:00Z"},
             "extraCredits": {"utilization": 12, "used": 2.4, "limit": 20.0},
             "fetchedAt": "2026-02-26T08:00:00Z"
         }
@@ -16,6 +17,7 @@ final class UsageDataTests: XCTestCase {
         XCTAssertEqual(data.fiveHour.utilization, 37)
         XCTAssertEqual(data.sevenDay.utilization, 54)
         XCTAssertEqual(data.sevenDaySonnet?.utilization, 3)
+        XCTAssertEqual(data.sevenDayDesign?.utilization, 43)
         XCTAssertEqual(data.extraCredits?.utilization, 12)
         XCTAssertEqual(data.extraCredits?.used, 2.4)
     }
@@ -30,6 +32,7 @@ final class UsageDataTests: XCTestCase {
         """.data(using: .utf8)!
         let data = try JSONDecoder.appDecoder.decode(UsageData.self, from: json)
         XCTAssertNil(data.sevenDaySonnet)
+        XCTAssertNil(data.sevenDayDesign)
         XCTAssertNil(data.extraCredits)
         XCTAssertNil(data.fiveHour.resetsAt)
     }
@@ -50,10 +53,11 @@ final class UsageDataTests: XCTestCase {
             fiveHour: RateLimit(utilization: 37, resetsAt: nil),
             sevenDay: RateLimit(utilization: 54, resetsAt: nil),
             sevenDaySonnet: RateLimit(utilization: 80, resetsAt: nil),
+            sevenDayDesign: RateLimit(utilization: 92, resetsAt: nil),
             extraCredits: nil,
             planName: nil,
             fetchedAt: Date()
         )
-        XCTAssertEqual(data.highestUtilization, 80)
+        XCTAssertEqual(data.highestUtilization, 92)
     }
 }

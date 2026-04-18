@@ -14,6 +14,7 @@ struct MediumWidgetView: View {
     private var gaugeCount: Int {
         var count = 2 // Session + Weekly always shown
         if data.sevenDaySonnet != nil { count += 1 }
+        if data.sevenDayDesign != nil { count += 1 }
         if data.extraCredits != nil { count += 1 }
         if let copilot = copilotData, !copilot.premiumInteractions.unlimited { count += 1 }
         return count
@@ -60,6 +61,14 @@ struct MediumWidgetView: View {
                     gaugeColumn(
                         label: "Sonnet",
                         limit: sonnet,
+                        resetStyle: .dayTime
+                    )
+                }
+
+                if let design = data.sevenDayDesign {
+                    gaugeColumn(
+                        label: "Design",
+                        limit: design,
                         resetStyle: .dayTime
                     )
                 }
