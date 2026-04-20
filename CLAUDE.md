@@ -1,3 +1,5 @@
+@working-memory.md
+
 <!-- dgc-policy-v11 -->
 # Dual-Graph Context Policy
 

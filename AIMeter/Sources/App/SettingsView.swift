@@ -26,6 +26,19 @@ enum SettingsSection: String, CaseIterable {
         #endif
         }
     }
+
+    var subtitle: String {
+        switch self {
+        case .accounts: return "Identity and provider access"
+        case .display: return "Layout, refresh, and visual behavior"
+        case .notifications: return "Threshold alerts and signals"
+        case .shortcuts: return "Keyboard navigation map"
+        case .general: return "System, updates, and exports"
+        #if DEBUG
+        case .developer: return "Diagnostics and preview toggles"
+        #endif
+        }
+    }
 }
 
 // MARK: - SettingsView
@@ -43,25 +56,64 @@ struct SettingsView: View {
     @State private var selectedSection: SettingsSection = .accounts
 
     var body: some View {
-        HStack(spacing: 0) {
-            sidebar
-            Divider()
-                .background(Color.white.opacity(0.1))
-            ScrollView(.vertical, showsIndicators: true) {
-                contentForSection(selectedSection)
+        ZStack {
+            LinearGradient(
+                colors: [
+                    Color(red: 0.05, green: 0.06, blue: 0.08),
+                    Color(red: 0.08, green: 0.10, blue: 0.12)
+                ],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+
+            HStack(spacing: 0) {
+                sidebar
+
+                Divider()
+                    .background(Color.white.opacity(0.08))
+
+                ScrollView(.vertical, showsIndicators: true) {
+                    VStack(alignment: .leading, spacing: 14) {
+                        settingsPageHeader
+                        contentForSection(selectedSection)
+                    }
                     .padding(20)
                     .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
-        .frame(width: 600, height: 500)
-        .background(Color(red: 0.08, green: 0.08, blue: 0.10))
+        .frame(width: 760, height: 560)
     }
 
     // MARK: - Sidebar
 
     private var sidebar: some View {
         VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Settings")
+                    .font(.system(size: 9, weight: .semibold, design: .monospaced))
+                    .foregroundColor(.secondary)
+                    .textCase(.uppercase)
+                    .tracking(0.8)
+
+                HStack(spacing: 6) {
+                    Image(systemName: "slider.horizontal.3")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundColor(.secondary)
+                    Text("Control Deck")
+                        .font(.system(size: 12, weight: .bold, design: .rounded))
+                        .foregroundColor(.white.opacity(0.9))
+                }
+            }
+            .padding(.horizontal, 8)
+            .padding(.bottom, 8)
+
+            Divider()
+                .overlay(Color.white.opacity(0.06))
+                .padding(.horizontal, 8)
+                .padding(.bottom, 6)
+
             ForEach(SettingsSection.allCases, id: \.rawValue) { section in
                 sidebarItem(section)
             }
@@ -69,32 +121,77 @@ struct SettingsView: View {
         }
         .padding(.vertical, 12)
         .padding(.horizontal, 8)
-        .frame(width: 160)
+        .frame(width: 210)
         .frame(maxHeight: .infinity)
-        .background(Color.white.opacity(0.03))
+        .background(Color.white.opacity(0.02))
     }
 
     private func sidebarItem(_ section: SettingsSection) -> some View {
         Button {
             selectedSection = section
         } label: {
-            HStack(spacing: 8) {
-                Image(systemName: section.icon)
-                    .font(.system(size: 13))
-                    .frame(width: 18, alignment: .center)
-                Text(section.rawValue)
-                    .font(.system(size: 13))
+            HStack(spacing: 10) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 7, style: .continuous)
+                        .fill(selectedSection == section ? Color.white.opacity(0.18) : Color.white.opacity(0.06))
+                        .frame(width: 22, height: 22)
+                    Image(systemName: section.icon)
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundColor(selectedSection == section ? .white : .secondary)
+                }
+
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(section.rawValue)
+                        .font(.system(size: 12, weight: .semibold, design: .rounded))
+                    Text(section.subtitle)
+                        .font(.system(size: 9, weight: .medium))
+                        .lineLimit(1)
+                        .foregroundColor(.secondary)
+                }
                 Spacer()
             }
-            .padding(.vertical, 6)
+            .padding(.vertical, 7)
             .padding(.horizontal, 10)
-            .background(selectedSection == section ? Color.white.opacity(0.1) : Color.clear)
-            .clipShape(RoundedRectangle(cornerRadius: 6))
+            .background(selectedSection == section ? Color.white.opacity(0.10) : Color.clear)
+            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
             .foregroundColor(selectedSection == section ? .white : .secondary)
         }
         .buttonStyle(.plain)
         .accessibilityLabel("\(section.rawValue) settings")
         .accessibilityAddTraits(selectedSection == section ? .isSelected : [])
+    }
+
+    private var settingsPageHeader: some View {
+        HStack(alignment: .top, spacing: 12) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .fill(Color.white.opacity(0.09))
+                    .frame(width: 44, height: 44)
+                Image(systemName: selectedSection.icon)
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundColor(.white)
+            }
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text(selectedSection.rawValue)
+                    .font(.system(size: 20, weight: .bold, design: .rounded))
+                    .foregroundColor(.white)
+                Text(selectedSection.subtitle)
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundColor(.secondary)
+            }
+
+            Spacer()
+        }
+        .padding(14)
+        .background(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(Color.white.opacity(0.04))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .stroke(Color.white.opacity(0.08), lineWidth: 1)
+        )
     }
 
     // MARK: - Content Router
@@ -134,6 +231,7 @@ struct AccountsSettingsSection: View {
     @ObservedObject var glmAuthManager: APIKeyAuthManager
     @ObservedObject var kimiAuthManager: APIKeyAuthManager
     @ObservedObject var minimaxAuthManager: APIKeyAuthManager
+    @ObservedObject private var oauthService = CodexOAuthService.shared
 
     @AppStorage("hidePersonalInfo") private var hidePersonalInfo: Bool = false
 
@@ -147,6 +245,8 @@ struct AccountsSettingsSection: View {
     @State private var kimiKeyInput = ""
     @State private var minimaxLabelInput = ""
     @State private var minimaxKeyInput = ""
+    // Per-account OAuth error messages, keyed by account id. Auto-clears after 10 seconds.
+    @State private var oauthErrors: [String: String] = [:]
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -293,25 +393,74 @@ struct AccountsSettingsSection: View {
                 }
 
                 if !isEnvKey {
-                    HStack(spacing: 6) {
-                        TextField("Label", text: labelInput)
-                            .font(.system(size: 11))
-                            .textFieldStyle(.plain)
-                            .frame(width: 80)
-                        SecureField("Paste API key…", text: keyInput)
-                            .font(.system(size: 12))
-                            .textFieldStyle(.plain)
-                        if !keyInput.wrappedValue.isEmpty {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Add a new key")
+                            .font(.system(size: 10, weight: .medium, design: .monospaced))
+                            .foregroundColor(.secondary)
+                            .textCase(.uppercase)
+
+                        HStack(spacing: 8) {
+                            TextField("Label (optional)", text: labelInput)
+                                .font(.system(size: 11, weight: .medium))
+                                .textFieldStyle(.plain)
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 8)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 9, style: .continuous)
+                                        .fill(Color.white.opacity(0.08))
+                                )
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 9, style: .continuous)
+                                        .stroke(Color.white.opacity(0.10), lineWidth: 1)
+                                )
+                                .frame(width: 120)
+
+                            SecureField("Paste API key…", text: keyInput)
+                                .font(.system(size: 12, weight: .medium, design: .monospaced))
+                                .textFieldStyle(.plain)
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 8)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 9, style: .continuous)
+                                        .fill(Color.white.opacity(0.08))
+                                )
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 9, style: .continuous)
+                                        .stroke(Color.white.opacity(0.10), lineWidth: 1)
+                                )
+                                .onSubmit {
+                                    let trimmedKey = keyInput.wrappedValue.trimmingCharacters(in: .whitespacesAndNewlines)
+                                    guard !trimmedKey.isEmpty else { return }
+                                    let label = labelInput.wrappedValue.trimmingCharacters(in: .whitespacesAndNewlines)
+                                    authManager.addAccount(label: label.isEmpty ? "Default" : label, apiKey: trimmedKey)
+                                    labelInput.wrappedValue = ""
+                                    keyInput.wrappedValue = ""
+                                }
+
                             Button("Save") {
-                                let label = labelInput.wrappedValue.isEmpty ? "Default" : labelInput.wrappedValue
-                                authManager.addAccount(label: label, apiKey: keyInput.wrappedValue)
+                                let trimmedKey = keyInput.wrappedValue.trimmingCharacters(in: .whitespacesAndNewlines)
+                                guard !trimmedKey.isEmpty else { return }
+                                let label = labelInput.wrappedValue.trimmingCharacters(in: .whitespacesAndNewlines)
+                                authManager.addAccount(label: label.isEmpty ? "Default" : label, apiKey: trimmedKey)
                                 labelInput.wrappedValue = ""
                                 keyInput.wrappedValue = ""
                             }
-                            .font(.system(size: 11))
+                            .font(.system(size: 11, weight: .bold, design: .rounded))
                             .buttonStyle(.plain)
-                            .foregroundColor(.accentColor)
+                            .foregroundColor(.black.opacity(0.82))
+                            .padding(.horizontal, 11)
+                            .padding(.vertical, 8)
+                            .background(
+                                RoundedRectangle(cornerRadius: 9, style: .continuous)
+                                    .fill(Color.accentColor)
+                            )
+                            .disabled(keyInput.wrappedValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                            .opacity(keyInput.wrappedValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? 0.45 : 1)
                         }
+
+                        Text("Press Return in API key field or click Save.")
+                            .font(.system(size: 10))
+                            .foregroundColor(.secondary)
                     }
                 }
             }
@@ -370,34 +519,133 @@ struct AccountsSettingsSection: View {
                 }
 
                 ForEach(codexAuthManager.accounts) { account in
-                    HStack {
-                        Image(systemName: account.id == codexAuthManager.activeAccountId ? "checkmark.circle.fill" : "circle")
-                            .foregroundColor(account.id == codexAuthManager.activeAccountId ? .green : .secondary)
-                            .font(.system(size: 12))
-                        VStack(alignment: .leading, spacing: 1) {
-                            Text("Signed in")
+                    VStack(alignment: .leading, spacing: 4) {
+                        HStack {
+                            Image(systemName: account.id == codexAuthManager.activeAccountId ? "checkmark.circle.fill" : "circle")
+                                .foregroundColor(account.id == codexAuthManager.activeAccountId ? .green : .secondary)
                                 .font(.system(size: 12))
-                                .foregroundColor(.white)
-                            Text(PersonalInfoRedactor.conditionalRedact(account.email, hideInfo: hidePersonalInfo) ?? account.id)
-                                .font(.system(size: 10))
-                                .foregroundColor(.secondary)
-                        }
-                        Spacer()
-                        if codexAuthManager.accounts.count > 1 && account.id != codexAuthManager.activeAccountId {
-                            Button("Switch") {
-                                codexAuthManager.setActiveAccount(account.id)
+                            VStack(alignment: .leading, spacing: 1) {
+                                HStack(spacing: 4) {
+                                    Text("Signed in")
+                                        .font(.system(size: 12))
+                                        .foregroundColor(.white)
+                                    if account.hasOAuthUpgrade {
+                                        Image(systemName: "bolt.fill")
+                                            .font(.system(size: 10, weight: .semibold))
+                                            .foregroundColor(.yellow)
+                                            .help("Fast-tier routing enabled")
+                                    }
+                                }
+                                Text(PersonalInfoRedactor.conditionalRedact(account.email, hideInfo: hidePersonalInfo) ?? account.id)
+                                    .font(.system(size: 10))
+                                    .foregroundColor(.secondary)
                             }
-                            .font(.system(size: 10))
+                            Spacer()
+                            if codexAuthManager.accounts.count > 1 && account.id != codexAuthManager.activeAccountId {
+                                Button("Switch") {
+                                    codexAuthManager.setActiveAccount(account.id)
+                                }
+                                .font(.system(size: 10))
+                                .buttonStyle(.plain)
+                                .foregroundColor(.accentColor)
+                            }
+                            Button("Sign Out") {
+                                codexSignOutTargetAccountId = account.id
+                                showCodexSignOutConfirmation = true
+                            }
+                            .font(.system(size: 11))
                             .buttonStyle(.plain)
-                            .foregroundColor(.accentColor)
+                            .foregroundColor(.red)
                         }
-                        Button("Sign Out") {
-                            codexSignOutTargetAccountId = account.id
-                            showCodexSignOutConfirmation = true
+
+                        // OAuth upgrade controls
+                        let isPending = oauthService.pendingLoginAccountID == account.id
+                        let anyPending = oauthService.pendingLoginAccountID != nil
+
+                        if account.hasOAuthUpgrade {
+                            HStack(spacing: 10) {
+                                Button("Re-authenticate OAuth") {
+                                    oauthErrors[account.id] = nil
+                                    Task {
+                                        do {
+                                            _ = try await CodexOAuthService.shared.startLogin(
+                                                for: account.id,
+                                                expectedChatGPTAccountID: account.chatGPTAccountId
+                                            )
+                                            codexAuthManager.reloadAccount(id: account.id)
+                                        } catch CodexOAuthError.cancelled {
+                                            // user-initiated cancel, no error surface needed
+                                        } catch {
+                                            showOAuthError(error.localizedDescription, for: account.id)
+                                        }
+                                    }
+                                }
+                                .font(.system(size: 10))
+                                .buttonStyle(.plain)
+                                .foregroundColor(.accentColor)
+                                .disabled(anyPending)
+
+                                Button("Remove OAuth") {
+                                    oauthErrors[account.id] = nil
+                                    CodexOAuthService.shared.revokeLocalTokens(for: account.id)
+                                    codexAuthManager.reloadAccount(id: account.id)
+                                }
+                                .font(.system(size: 10))
+                                .buttonStyle(.plain)
+                                .foregroundColor(.orange)
+                                .disabled(anyPending)
+                            }
+                            .padding(.leading, 22)
+                        } else {
+                            // Show upgrade button or in-progress indicator
+                            if isPending {
+                                HStack(spacing: 6) {
+                                    ProgressView()
+                                        .scaleEffect(0.6)
+                                        .frame(width: 12, height: 12)
+                                    Text("Signing in…")
+                                        .font(.system(size: 10))
+                                        .foregroundColor(.secondary)
+                                    Button("Cancel") {
+                                        Task { await oauthService.cancelPendingLogin() }
+                                    }
+                                    .font(.system(size: 10))
+                                    .buttonStyle(.link)
+                                }
+                                .padding(.leading, 22)
+                            } else {
+                                Button {
+                                    oauthErrors[account.id] = nil
+                                    Task {
+                                        do {
+                                            _ = try await CodexOAuthService.shared.startLogin(
+                                                for: account.id,
+                                                expectedChatGPTAccountID: account.chatGPTAccountId
+                                            )
+                                            codexAuthManager.reloadAccount(id: account.id)
+                                        } catch CodexOAuthError.cancelled {
+                                            // user-initiated cancel, no error surface needed
+                                        } catch {
+                                            showOAuthError(error.localizedDescription, for: account.id)
+                                        }
+                                    }
+                                } label: {
+                                    Label("Upgrade for fast routing", systemImage: "bolt.fill")
+                                        .font(.system(size: 10))
+                                }
+                                .buttonStyle(.plain)
+                                .foregroundColor(.yellow)
+                                .disabled(anyPending)
+                                .padding(.leading, 22)
+                            }
                         }
-                        .font(.system(size: 11))
-                        .buttonStyle(.plain)
-                        .foregroundColor(.red)
+
+                        if let errorMsg = oauthErrors[account.id] {
+                            Text(errorMsg)
+                                .font(.system(size: 10))
+                                .foregroundColor(.red)
+                                .padding(.leading, 22)
+                        }
                     }
                 }
 
@@ -437,6 +685,15 @@ struct AccountsSettingsSection: View {
             Button("Cancel", role: .cancel) {}
         } message: {
             Text("You'll need to sign in again to view Codex usage data.")
+        }
+    }
+
+    /// Shows an inline OAuth error for the given account for 10 seconds, then auto-clears it.
+    private func showOAuthError(_ message: String, for accountID: String) {
+        oauthErrors[accountID] = message
+        Task {
+            try? await Task.sleep(for: .seconds(10))
+            oauthErrors[accountID] = nil
         }
     }
 
@@ -490,12 +747,8 @@ struct DisplaySettingsSection: View {
                         Button("Tab Bar") { navigationStyle = "tabbar" }
                         Button("Dropdown") { navigationStyle = "dropdown" }
                     } label: {
-                        Text(navigationStyle == "tabbar" ? "Tab Bar" : "Dropdown")
-                            .font(.system(size: 12))
-                            .foregroundColor(.white)
+                        settingsDropdownTrigger(navigationStyle == "tabbar" ? "Tab Bar" : "Dropdown")
                     }
-                    .menuStyle(.borderlessButton)
-                    .fixedSize()
                 }
 
                 settingsRow("Menu bar") {
@@ -504,12 +757,8 @@ struct DisplaySettingsSection: View {
                             Button(provider.displayName) { menuBarProvider = provider.rawValue }
                         }
                     } label: {
-                        Text(MenuBarProvider(rawValue: menuBarProvider)?.displayName ?? menuBarProvider)
-                            .font(.system(size: 12))
-                            .foregroundColor(.white)
+                        settingsDropdownTrigger(MenuBarProvider(rawValue: menuBarProvider)?.displayName ?? menuBarProvider)
                     }
-                    .menuStyle(.borderlessButton)
-                    .fixedSize()
                 }
 
                 settingsRow("Menu bar display") {
@@ -518,12 +767,8 @@ struct DisplaySettingsSection: View {
                             Button(mode.displayName) { menuBarDisplayMode = mode.rawValue }
                         }
                     } label: {
-                        Text(MenuBarDisplayMode(rawValue: menuBarDisplayMode)?.displayName ?? menuBarDisplayMode)
-                            .font(.system(size: 12))
-                            .foregroundColor(.white)
+                        settingsDropdownTrigger(MenuBarDisplayMode(rawValue: menuBarDisplayMode)?.displayName ?? menuBarDisplayMode)
                     }
-                    .menuStyle(.borderlessButton)
-                    .fixedSize()
                 }
 
                 settingsRow("Loading animation") {
@@ -532,12 +777,8 @@ struct DisplaySettingsSection: View {
                             Button(pattern.displayName) { loadingPattern = pattern.rawValue }
                         }
                     } label: {
-                        Text(LoadingPattern(rawValue: loadingPattern)?.displayName ?? loadingPattern)
-                            .font(.system(size: 12))
-                            .foregroundColor(.white)
+                        settingsDropdownTrigger(LoadingPattern(rawValue: loadingPattern)?.displayName ?? loadingPattern)
                     }
-                    .menuStyle(.borderlessButton)
-                    .fixedSize()
                 }
 
                 settingsRow("Timezone") {
@@ -549,12 +790,8 @@ struct DisplaySettingsSection: View {
                             Button(opt.label) { timezoneOffset = opt.value }
                         }
                     } label: {
-                        Text(tzOptions.first(where: { $0.value == timezoneOffset })?.label ?? "\(timezoneOffset >= 0 ? "+" : "")\(timezoneOffset)")
-                            .font(.system(size: 12))
-                            .foregroundColor(.white)
+                        settingsDropdownTrigger(tzOptions.first(where: { $0.value == timezoneOffset })?.label ?? "\(timezoneOffset >= 0 ? "+" : "")\(timezoneOffset)")
                     }
-                    .menuStyle(.borderlessButton)
-                    .fixedSize()
                 }
 
                 settingsRow("Refresh") {
@@ -566,12 +803,8 @@ struct DisplaySettingsSection: View {
                             Button(opt.label) { refreshInterval = opt.value }
                         }
                     } label: {
-                        Text(refreshOptions.first(where: { $0.value == refreshInterval })?.label ?? "\(Int(refreshInterval))s")
-                            .font(.system(size: 12))
-                            .foregroundColor(.white)
+                        settingsDropdownTrigger(refreshOptions.first(where: { $0.value == refreshInterval })?.label ?? "\(Int(refreshInterval))s")
                     }
-                    .menuStyle(.borderlessButton)
-                    .fixedSize()
                 }
 
                 Toggle("Per-provider intervals", isOn: $perProviderRefresh)
@@ -597,12 +830,8 @@ struct DisplaySettingsSection: View {
                             Button("\(val)%") { colorElevated = val }
                         }
                     } label: {
-                        Text("<\(colorElevated)%")
-                            .font(.system(size: 12))
-                            .foregroundColor(.white)
+                        settingsDropdownTrigger("<\(colorElevated)%", minWidth: 84)
                     }
-                    .menuStyle(.borderlessButton)
-                    .fixedSize()
                 }
 
                 settingsRow("Elevated", labelColor: .yellow) {
@@ -611,12 +840,8 @@ struct DisplaySettingsSection: View {
                             Button("\(val)%") { colorHigh = val }
                         }
                     } label: {
-                        Text("<\(colorHigh)%")
-                            .font(.system(size: 12))
-                            .foregroundColor(.white)
+                        settingsDropdownTrigger("<\(colorHigh)%", minWidth: 84)
                     }
-                    .menuStyle(.borderlessButton)
-                    .fixedSize()
                 }
 
                 settingsRow("High", labelColor: .orange) {
@@ -625,12 +850,8 @@ struct DisplaySettingsSection: View {
                             Button("\(val)%") { colorCritical = val }
                         }
                     } label: {
-                        Text("<\(colorCritical)%")
-                            .font(.system(size: 12))
-                            .foregroundColor(.white)
+                        settingsDropdownTrigger("<\(colorCritical)%", minWidth: 84)
                     }
-                    .menuStyle(.borderlessButton)
-                    .fixedSize()
                 }
 
                 Divider().opacity(0.3)
@@ -653,10 +874,20 @@ struct DisplaySettingsSection: View {
                             moveProvider(from: idx, offset: -1)
                         } label: {
                             Image(systemName: "chevron.up")
-                                .font(.system(size: 10))
+                                .font(.system(size: 10, weight: .semibold))
+                                .foregroundColor(idx == 0 ? .secondary.opacity(0.35) : .secondary)
+                                .frame(width: 28, height: 28)
+                                .background(
+                                    Circle()
+                                        .fill(Color.white.opacity(idx == 0 ? 0.03 : 0.08))
+                                )
+                                .overlay(
+                                    Circle()
+                                        .stroke(Color.white.opacity(idx == 0 ? 0.08 : 0.18), lineWidth: 1)
+                                )
+                                .contentShape(Circle())
                         }
                         .buttonStyle(.plain)
-                        .foregroundColor(idx == 0 ? .secondary.opacity(0.3) : .secondary)
                         .disabled(idx == 0)
                         .accessibilityLabel("Move \(tab.displayName) up")
                         // Move down
@@ -664,14 +895,24 @@ struct DisplaySettingsSection: View {
                             moveProvider(from: idx, offset: 1)
                         } label: {
                             Image(systemName: "chevron.down")
-                                .font(.system(size: 10))
+                                .font(.system(size: 10, weight: .semibold))
+                                .foregroundColor(idx == orderedTabs.count - 1 ? .secondary.opacity(0.35) : .secondary)
+                                .frame(width: 28, height: 28)
+                                .background(
+                                    Circle()
+                                        .fill(Color.white.opacity(idx == orderedTabs.count - 1 ? 0.03 : 0.08))
+                                )
+                                .overlay(
+                                    Circle()
+                                        .stroke(Color.white.opacity(idx == orderedTabs.count - 1 ? 0.08 : 0.18), lineWidth: 1)
+                                )
+                                .contentShape(Circle())
                         }
                         .buttonStyle(.plain)
-                        .foregroundColor(idx == orderedTabs.count - 1 ? .secondary.opacity(0.3) : .secondary)
                         .disabled(idx == orderedTabs.count - 1)
                         .accessibilityLabel("Move \(tab.displayName) down")
                     }
-                    .padding(.vertical, 2)
+                    .padding(.vertical, 3)
                 }
             }
         }
@@ -693,12 +934,8 @@ struct DisplaySettingsSection: View {
                     Button(opt.0) { value.wrappedValue = opt.1 }
                 }
             } label: {
-                Text(options.first(where: { $0.1 == value.wrappedValue })?.0 ?? "\(Int(value.wrappedValue))s")
-                    .font(.system(size: 12))
-                    .foregroundColor(.white)
+                settingsDropdownTrigger(options.first(where: { $0.1 == value.wrappedValue })?.0 ?? "\(Int(value.wrappedValue))s", minWidth: 84)
             }
-            .menuStyle(.borderlessButton)
-            .fixedSize()
         }
     }
 }
@@ -731,12 +968,8 @@ struct NotificationsSettingsSection: View {
                                 Button(opt.label) { notifyWarning = opt.value }
                             }
                         } label: {
-                            Text(warningOptions.first(where: { $0.value == notifyWarning })?.label ?? "\(notifyWarning)%")
-                                .font(.system(size: 12))
-                                .foregroundColor(.white)
+                            settingsDropdownTrigger(warningOptions.first(where: { $0.value == notifyWarning })?.label ?? "\(notifyWarning)%", minWidth: 84)
                         }
-                        .menuStyle(.borderlessButton)
-                        .fixedSize()
                     }
 
                     settingsRow("Critical", labelColor: .red) {
@@ -748,12 +981,8 @@ struct NotificationsSettingsSection: View {
                                 Button(opt.label) { notifyCritical = opt.value }
                             }
                         } label: {
-                            Text(criticalOptions.first(where: { $0.value == notifyCritical })?.label ?? "\(notifyCritical)%")
-                                .font(.system(size: 12))
-                                .foregroundColor(.white)
+                            settingsDropdownTrigger(criticalOptions.first(where: { $0.value == notifyCritical })?.label ?? "\(notifyCritical)%", minWidth: 84)
                         }
-                        .menuStyle(.borderlessButton)
-                        .fixedSize()
                     }
 
                     // Threshold visualization bar
@@ -914,16 +1143,8 @@ struct GeneralSettingsSection: View {
                         ExportService.exportCopilotHistory(from: copilotHistoryService)
                     }
                 } label: {
-                    HStack {
-                        Image(systemName: "square.and.arrow.up")
-                            .font(.system(size: 11))
-                        Text("Export History…")
-                            .font(.system(size: 12))
-                    }
-                    .foregroundColor(.accentColor)
+                    settingsDropdownTrigger("Export History…", systemImage: "square.and.arrow.up", minWidth: 138)
                 }
-                .menuStyle(.borderlessButton)
-                .fixedSize()
 
                 Divider().opacity(0.3)
 
@@ -988,6 +1209,14 @@ struct GeneralSettingsSection: View {
 struct DeveloperSettingsSection: View {
     @ObservedObject var historyService: QuotaHistoryService
     @ObservedObject var copilotHistoryService: CopilotHistoryService
+
+    @AppStorage("demoUIClaude") private var demoUIClaude: Bool = false
+    @AppStorage("demoUICopilot") private var demoUICopilot: Bool = false
+    @AppStorage("demoUIGLM") private var demoUIGLM: Bool = false
+    @AppStorage("demoUIKimi") private var demoUIKimi: Bool = false
+    @AppStorage("demoUICodex") private var demoUICodex: Bool = false
+    @AppStorage("demoUIMiniMax") private var demoUIMiniMax: Bool = false
+    @AppStorage("forceEmptyStatesAllProviders") private var forceEmptyStatesAllProviders: Bool = false
 
     @State private var clearCacheConfirm = false
     @State private var resetSettingsConfirm = false
@@ -1099,6 +1328,49 @@ struct DeveloperSettingsSection: View {
                 }
             }
 
+            // MARK: Demo UI
+
+            settingsSectionCard {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Demo UI")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundColor(.secondary)
+
+                    Toggle("Claude", isOn: $demoUIClaude)
+                        .font(.system(size: 12))
+                    Toggle("Copilot", isOn: $demoUICopilot)
+                        .font(.system(size: 12))
+                    Toggle("GLM", isOn: $demoUIGLM)
+                        .font(.system(size: 12))
+                    Toggle("Kimi", isOn: $demoUIKimi)
+                        .font(.system(size: 12))
+                    Toggle("Codex", isOn: $demoUICodex)
+                        .font(.system(size: 12))
+                    Toggle("MiniMax", isOn: $demoUIMiniMax)
+                        .font(.system(size: 12))
+
+                    Divider().opacity(0.3)
+
+                    Toggle("Force all providers empty state", isOn: $forceEmptyStatesAllProviders)
+                        .font(.system(size: 12))
+
+                    Divider().opacity(0.3)
+
+                    Button("Disable all demo UI") {
+                        demoUIClaude = false
+                        demoUICopilot = false
+                        demoUIGLM = false
+                        demoUIKimi = false
+                        demoUICodex = false
+                        demoUIMiniMax = false
+                        forceEmptyStatesAllProviders = false
+                    }
+                    .font(.system(size: 12))
+                    .buttonStyle(.plain)
+                    .foregroundColor(.orange)
+                }
+            }
+
             // MARK: Actions
 
             settingsSectionCard {
@@ -1201,18 +1473,54 @@ struct DeveloperSettingsSection: View {
 
 private func settingsSectionCard<Content: View>(@ViewBuilder content: () -> Content) -> some View {
     content()
-        .padding(10)
+        .padding(12)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.white.opacity(0.05))
-        .clipShape(RoundedRectangle(cornerRadius: AppRadius.card))
+        .background(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(Color.white.opacity(0.045))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .stroke(Color.white.opacity(0.08), lineWidth: 1)
+        )
 }
 
 private func settingsRow<Content: View>(_ label: String, labelColor: Color = .secondary, @ViewBuilder content: () -> Content) -> some View {
     HStack {
         Text(label)
-            .font(.system(size: 12))
+            .font(.system(size: 11, weight: .medium, design: .monospaced))
             .foregroundColor(labelColor)
         Spacer()
         content()
     }
+    .padding(.vertical, 1)
+}
+
+private func settingsDropdownTrigger(_ value: String, systemImage: String? = nil, minWidth: CGFloat = 110) -> some View {
+    HStack(spacing: 7) {
+        if let systemImage {
+            Image(systemName: systemImage)
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundColor(.secondary)
+        }
+
+        Text(value)
+            .font(.system(size: 12, weight: .semibold, design: .rounded))
+            .foregroundColor(.white)
+            .lineLimit(1)
+    }
+    .padding(.horizontal, 14)
+    .padding(.vertical, 8)
+    .frame(minWidth: minWidth, alignment: .leading)
+    .frame(minHeight: 34)
+    .background(
+        Capsule(style: .continuous)
+            .fill(Color.white.opacity(0.03))
+    )
+    .overlay(
+        Capsule(style: .continuous)
+            .stroke(Color.white.opacity(0.24), lineWidth: 1)
+    )
+    .shadow(color: .black.opacity(0.16), radius: 1, x: 0, y: 1)
+    .contentShape(Capsule(style: .continuous))
 }

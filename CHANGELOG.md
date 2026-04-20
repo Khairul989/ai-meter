@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.0.0] - 2026-04-19
+
+### Added
+
+- Dedicated Claude analytics window with redesigned model distribution and daily traffic panels
+
+### Changed
+
+- Major Mac-first visual redesign across the app with new telemetry-inspired surfaces, navigation, and provider presentation
+- Claude quota popover rebuilt around a session hero, grouped limits, cleaner pacing signals, and a more native analytics split
+- Codex popover redesigned with a provider-specific telemetry layout, slimmer status sections, and updated footer treatment
+- App icon replaced with the new owl branding
+
+### Fixed
+
+- Claude pace messaging now shows the steady-pace delta again alongside the reset and runout guidance
+- Release icon assets now use the updated full-background owl icon set at every macOS size
+
 ## [1.44.0] - 2026-04-18
 
 ### Added

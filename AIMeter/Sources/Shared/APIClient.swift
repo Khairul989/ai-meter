@@ -149,7 +149,8 @@ enum APIClient {
             return (nil, nil)
         }
 
-        let planName = json["seat_tier"] as? String
+        let rawPlanName = json["seat_tier"] as? String
+        let planName = rawPlanName.flatMap { SessionAuthManager.parsePlanName(rateLimitTier: $0) } ?? rawPlanName
 
         guard let limitCents = json["spend_limit_amount_cents"] as? Int, limitCents > 0 else {
             return (nil, planName)

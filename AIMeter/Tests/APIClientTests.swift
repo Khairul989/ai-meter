@@ -41,4 +41,20 @@ final class APIClientTests: XCTestCase {
             XCTAssertEqual(error as? APIError, .sessionExpired)
         }
     }
+
+    func testParseExtraUsageNormalizesSeatTierPlanName() {
+        let json = """
+        {
+            "seat_tier": "max_20x",
+            "spend_limit_amount_cents": 2500,
+            "balance_cents": 1250
+        }
+        """.data(using: .utf8)!
+
+        let result = APIClient.parseExtraUsage(json)
+        XCTAssertEqual(result.planName, "Max 20×")
+        XCTAssertEqual(result.credits?.limit, 25.0)
+        XCTAssertEqual(result.credits?.used, 12.5)
+        XCTAssertEqual(result.credits?.utilization, 50)
+    }
 }
