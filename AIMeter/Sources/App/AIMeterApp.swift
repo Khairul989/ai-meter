@@ -49,6 +49,17 @@ enum MenuBarProvider: String, CaseIterable {
         case .minimax: "MiniMax"
         }
     }
+
+    var menuBarIconName: String {
+        switch self {
+        case .claude: return "claude-small"
+        case .copilot: return "copilot-small"
+        case .glm: return "glm-small"
+        case .kimi: return "kimi-small"
+        case .codex: return "codex-small"
+        case .minimax: return "minimax-small"
+        }
+    }
 }
 
 @main
@@ -64,7 +75,9 @@ struct AIMeterApp: App {
     @StateObject private var glmAuthManager: APIKeyAuthManager
     @StateObject private var kimiAuthManager: APIKeyAuthManager
     @StateObject private var codexService = CodexService()
-    @StateObject private var codexAuthManager = CodexAuthManager()
+    @StateObject private var codexAuthManager: CodexAuthManager
+    @StateObject private var codexStatsService = CodexSessionStatsService()
+    @StateObject private var claudeSessionStatsService = ClaudeSessionStatsService()
     @StateObject private var minimaxService = MinimaxService()
     @StateObject private var minimaxAuthManager: APIKeyAuthManager
     @StateObject private var apiKeyAuthManagers: APIKeyAuthManagers
@@ -91,9 +104,11 @@ struct AIMeterApp: App {
     @AppStorage("keychainUpgradedV2") private var keychainUpgraded = false
 
     init() {
+        let codexAuthManager = CodexAuthManager()
         let glmAuthManager = APIKeyAuthManager(keychain: .glm)
         let kimiAuthManager = APIKeyAuthManager(keychain: .kimi)
         let minimaxAuthManager = APIKeyAuthManager(keychain: .minimax)
+        _codexAuthManager = StateObject(wrappedValue: codexAuthManager)
         _glmAuthManager = StateObject(wrappedValue: glmAuthManager)
         _kimiAuthManager = StateObject(wrappedValue: kimiAuthManager)
         _minimaxAuthManager = StateObject(wrappedValue: minimaxAuthManager)
@@ -233,12 +248,14 @@ struct AIMeterApp: App {
                 .environmentObject(kimiService)
                 .environmentObject(codexService)
                 .environmentObject(codexAuthManager)
+                .environmentObject(codexStatsService)
                 .environmentObject(apiKeyAuthManagers)
                 .environmentObject(minimaxService)
                 .environmentObject(minimaxHistoryService)
                 .environmentObject(updaterManager)
                 .environmentObject(authManager)
                 .environmentObject(statsService)
+                .environmentObject(claudeSessionStatsService)
                 .environmentObject(historyService)
                 .environmentObject(providerStatusService)
         )
@@ -319,6 +336,7 @@ struct AIMeterApp: App {
             MenuBarLabel(
                 labelText: labelInfo.text,
                 utilization: labelInfo.utilization,
+                provider: selected,
                 isRefreshing: isRefreshing
             )
         }
@@ -333,32 +351,36 @@ final class MenuBarLabelState {
     private(set) var loadingImage: NSImage?
     private var lastText: String = ""
     private var lastUtilization: Int = -1
+    private var lastProvider: MenuBarProvider = .claude
 
-    func updateIfNeeded(labelText: String, utilization: Int) {
-        guard labelText != lastText || utilization != lastUtilization else { return }
+    func updateIfNeeded(labelText: String, utilization: Int, provider: MenuBarProvider) {
+        guard labelText != lastText || utilization != lastUtilization || provider != lastProvider else { return }
         lastText = labelText
         lastUtilization = utilization
+        lastProvider = provider
         let color = UsageColor.forUtilization(utilization)
-        cachedImage = MenuBarImageRenderer.render(MenuBarLabelContent(labelText: labelText, color: color, opacity: 1.0))
-        loadingImage = MenuBarImageRenderer.render(MenuBarLabelContent(labelText: labelText, color: color, opacity: 0.4))
+        cachedImage = MenuBarImageRenderer.render(MenuBarLabelContent(labelText: labelText, provider: provider, color: color, opacity: 1.0))
+        loadingImage = MenuBarImageRenderer.render(MenuBarLabelContent(labelText: labelText, provider: provider, color: color, opacity: 0.4))
     }
 }
 
 struct MenuBarLabel: View {
     let labelText: String
     let utilization: Int
+    let provider: MenuBarProvider
     let isRefreshing: Bool
 
     @State private var state = MenuBarLabelState()
 
     var body: some View {
-        let _ = state.updateIfNeeded(labelText: labelText, utilization: utilization)
+        let _ = state.updateIfNeeded(labelText: labelText, utilization: utilization, provider: provider)
         if isRefreshing, let img = state.loadingImage {
             Image(nsImage: img)
         } else if let img = state.cachedImage {
             Image(nsImage: img)
         } else {
-            Image(systemName: "sparkles")
+            Image(provider.menuBarIconName)
+                .renderingMode(.template)
         }
     }
 
@@ -460,12 +482,14 @@ struct MenuBarLabel: View {
 
 private struct MenuBarLabelContent: View {
     let labelText: String
+    let provider: MenuBarProvider
     let color: Color
     let opacity: Double
 
     var body: some View {
         HStack(spacing: 3) {
-            Image(systemName: "sparkles")
+            Image(provider.menuBarIconName)
+                .renderingMode(.template)
                 .foregroundStyle(color)
                 .opacity(opacity)
             Text(labelText)

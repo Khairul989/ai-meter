@@ -11,6 +11,32 @@ struct MinimaxModelQuota: Codable, Equatable, Identifiable {
     let weeklyTotal: Int
     let resetsAt: Date?
     let weeklyResetsAt: Date?
+
+    var displayName: String {
+        let trimmed = modelName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return "Unknown Model" }
+
+        return trimmed
+            .replacingOccurrences(of: "_", with: " ")
+            .replacingOccurrences(of: "-", with: " ")
+            .split(whereSeparator: \.isWhitespace)
+            .map { token in
+                let raw = String(token)
+                let lower = raw.lowercased()
+
+                if lower == "minimax" {
+                    return "MiniMax"
+                }
+                if raw.first?.isNumber == true {
+                    return raw
+                }
+                if raw.count <= 2 {
+                    return raw.uppercased()
+                }
+                return raw.prefix(1).uppercased() + raw.dropFirst()
+            }
+            .joined(separator: " ")
+    }
 }
 
 struct MinimaxUsageData: Codable, Equatable {

@@ -7,6 +7,14 @@ final class SessionAuthManagerTests: XCTestCase {
         XCTAssertEqual(SessionAuthManager.parsePlanName(rateLimitTier: "default_claude_max_5x"), "Max 5×")
     }
 
+    func testParseMax20x() {
+        XCTAssertEqual(SessionAuthManager.parsePlanName(rateLimitTier: "default_claude_max_20x"), "Max 20×")
+    }
+
+    func testParseSeatTierMax20x() {
+        XCTAssertEqual(SessionAuthManager.parsePlanName(rateLimitTier: "max_20x"), "Max 20×")
+    }
+
     func testParseMax() {
         XCTAssertEqual(SessionAuthManager.parsePlanName(rateLimitTier: "default_claude_max"), "Max")
     }

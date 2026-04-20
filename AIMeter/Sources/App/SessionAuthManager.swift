@@ -223,9 +223,17 @@ final class SessionAuthManager: ObservableObject {
 
     /// Parse rate_limit_tier into a human-readable plan name
     /// e.g. "default_claude_max_5x" → "Max 5×", "default_claude_pro" → "Pro"
-    static func parsePlanName(rateLimitTier: String) -> String? {
+    nonisolated static func parsePlanName(rateLimitTier: String) -> String? {
         let tier = rateLimitTier.lowercased()
-        if tier.contains("max_5x") { return "Max 5×" }
+
+        if let match = tier.range(of: #"max[_-]?(\d+)x"#, options: .regularExpression) {
+            let token = String(tier[match])
+            let digits = token.filter(\.isNumber)
+            if let multiplier = Int(digits), multiplier > 0 {
+                return "Max \(multiplier)×"
+            }
+        }
+
         if tier.contains("max") { return "Max" }
         if tier.contains("pro") { return "Pro" }
         if tier.contains("team") { return "Team" }
