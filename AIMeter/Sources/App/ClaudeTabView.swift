@@ -640,7 +640,12 @@ struct ClaudeTabView: View {
                 title: "Sonnet",
                 subtitle: "Dedicated limit",
                 percentage: sonnet.utilization,
-                detail: limitDetail(sonnet.resetsAt)
+                detail: limitDetail(sonnet.resetsAt),
+                pace: UsagePace.calculate(
+                    usagePercent: sonnet.utilization,
+                    resetsAt: sonnet.resetsAt,
+                    windowDurationHours: 168.0
+                )
             ))
         }
 

@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.1.0] - 2026-04-22
+
+### Added
+
+- Sonnet dedicated-limit row on the Claude tab now shows the same weekly pace indicator as the overall 7-day Claude limit
+
 ## [2.0.0] - 2026-04-20
 
 ### Added
