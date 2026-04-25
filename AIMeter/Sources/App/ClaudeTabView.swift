@@ -244,6 +244,15 @@ private struct ClaudeHeroView: View {
     }
 
     var body: some View {
+        Button(action: onRefresh) {
+            heroCard
+        }
+        .buttonStyle(.plain)
+        .contentShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .help("Refresh quota (⌘R)")
+    }
+
+    private var heroCard: some View {
         HStack(alignment: .center, spacing: 12) {
             VStack(alignment: .leading, spacing: 8) {
                 Text("Session Telemetry")
@@ -315,8 +324,6 @@ private struct ClaudeHeroView: View {
                 .padding(.top, 1)
                 .padding(.leading, 16)
         }
-        .contentShape(Rectangle())
-        .onTapGesture { onRefresh() }
     }
 
     private var resetClockText: String {
