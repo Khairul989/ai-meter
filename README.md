@@ -44,7 +44,7 @@ Deep-dive into session history — visible tokens, cache leverage, model distrib
 
 | Display | Keyboard Shortcuts |
 |:---:|:---:|
-| <img src="docs/screenshots/display_settings.jpeg" width="480" alt="Display settings"> | <img src="docs/screenshots/keyboard_shortcuts.jpeg" width="480" alt="Keyboard shortcuts"> |
+| <img src="docs/screenshots/display_settings.jpeg" width="320" alt="Display settings"> | <img src="docs/screenshots/keyboard_shortcuts.jpeg" width="320" alt="Keyboard shortcuts"> |
 | Navigation style, refresh interval, timezone, color thresholds, and provider order | Full keyboard navigation map for power users |
 
 ---
