@@ -200,6 +200,7 @@ private struct ClaudeHeroView: View {
     let timeZone: TimeZone
     let pace: UsagePace.Result?
     let now: Date
+    let onRefresh: () -> Void
 
     private var urgencyText: String? {
         pace?.etaDescription
@@ -314,6 +315,8 @@ private struct ClaudeHeroView: View {
                 .padding(.top, 1)
                 .padding(.leading, 16)
         }
+        .contentShape(Rectangle())
+        .onTapGesture { onRefresh() }
     }
 
     private var resetClockText: String {
@@ -555,7 +558,8 @@ struct ClaudeTabView: View {
                         windowDurationHours: 5.0,
                         now: context.date
                     ),
-                    now: context.date
+                    now: context.date,
+                    onRefresh: onRefresh
                 )
             }
 
