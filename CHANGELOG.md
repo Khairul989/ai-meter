@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.2.0] - 2026-04-26
+
+### Added
+
+- Session Telemetry card is now tappable to refresh quota, with full accessibility support (Button, VoiceOver, keyboard, tooltip)
+- README screenshots showcasing quota popover, analytics window, and settings
+
+### Changed
+
+- Settings screenshot width normalized to 320px to prevent mobile overflow on GitHub
+
 ## [2.1.0] - 2026-04-22
 
 ### Added
