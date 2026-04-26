@@ -200,6 +200,7 @@ private struct ClaudeHeroView: View {
     let timeZone: TimeZone
     let pace: UsagePace.Result?
     let now: Date
+    let onRefresh: () -> Void
 
     private var urgencyText: String? {
         pace?.etaDescription
@@ -243,6 +244,15 @@ private struct ClaudeHeroView: View {
     }
 
     var body: some View {
+        Button(action: onRefresh) {
+            heroCard
+        }
+        .buttonStyle(.plain)
+        .contentShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .help("Refresh quota (⌘R)")
+    }
+
+    private var heroCard: some View {
         HStack(alignment: .center, spacing: 12) {
             VStack(alignment: .leading, spacing: 8) {
                 Text("Session Telemetry")
@@ -555,7 +565,8 @@ struct ClaudeTabView: View {
                         windowDurationHours: 5.0,
                         now: context.date
                     ),
-                    now: context.date
+                    now: context.date,
+                    onRefresh: onRefresh
                 )
             }
 
