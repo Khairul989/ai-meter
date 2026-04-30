@@ -6,14 +6,16 @@ import OSLog
 private let logger = Logger(subsystem: AppConstants.bundleId, category: "CodexOAuth")
 
 // MARK: - Constants
-//
+
+/// Internal accessor — the only constant from this file that other types in the target may read.
+let codexOAuthRefreshMarginSeconds: TimeInterval = 5 * 60
+
 // client_id and redirect_uri are the Codex CLI's public OAuth client.
 // OpenAI whitelists port 1455 for this client_id specifically — no other port works.
 private enum OAuthConstants {
     static let clientID = "app_EMoamEEZ73f0CkXaXp7hrann"
     static let issuer = "https://auth.openai.com"
     static let redirectURI = "http://localhost:1455/auth/callback"
-    static let refreshMarginSeconds: TimeInterval = 5 * 60
 }
 
 // MARK: - CodexOAuthTokens
@@ -162,7 +164,7 @@ final class CodexOAuthService: ObservableObject {
 
         // Check cached access token first
         if let cached = loadCachedAccessToken(for: accountID),
-           cached.expiresAt > Date().addingTimeInterval(OAuthConstants.refreshMarginSeconds) {
+           cached.expiresAt > Date().addingTimeInterval(codexOAuthRefreshMarginSeconds) {
             return cached.token
         }
 
@@ -341,7 +343,9 @@ final class CodexOAuthService: ObservableObject {
         request.httpBody = bodyString.data(using: .utf8)
 
         let (data, response) = try await URLSession.shared.data(for: request)
-        let httpResponse = response as! HTTPURLResponse
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw CodexOAuthError.invalidTokenResponse
+        }
 
         guard httpResponse.statusCode == 200 else {
             let message = String(data: data, encoding: .utf8) ?? "Unknown error"
@@ -382,7 +386,7 @@ final class CodexOAuthService: ObservableObject {
 
         // Cache access token as a small JSON blob: { "token": "...", "expiresAt": "ISO8601" }
         // Storing expiresAt here avoids a separate keychain entry just for the date.
-        let cacheEntry = AccessTokenCacheEntry(token: tokens.accessToken, expiresAt: tokens.expiresAt)
+        let cacheEntry = OAuthAccessTokenCache(token: tokens.accessToken, expiresAt: tokens.expiresAt)
         if let encoded = try? JSONEncoder().encode(cacheEntry),
            let json = String(data: encoded, encoding: .utf8) {
             CodexSessionKeychain.save(
@@ -393,7 +397,7 @@ final class CodexOAuthService: ObservableObject {
         }
     }
 
-    private func loadCachedAccessToken(for accountID: String) -> AccessTokenCacheEntry? {
+    private func loadCachedAccessToken(for accountID: String) -> OAuthAccessTokenCache? {
         guard let json = CodexSessionKeychain.read(
             account: .oauthAccessTokenCache,
             accountId: accountID
@@ -403,7 +407,7 @@ final class CodexOAuthService: ObservableObject {
 
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
-        return try? decoder.decode(AccessTokenCacheEntry.self, from: data)
+        return try? decoder.decode(OAuthAccessTokenCache.self, from: data)
     }
 
     // MARK: - JWT / Account ID Extraction
@@ -468,7 +472,7 @@ private struct OAuthTokenResponse: Decodable {
 }
 
 /// Access token cached in keychain as JSON: { "token": "…", "expiresAt": "ISO8601" }
-private struct AccessTokenCacheEntry: Codable {
+struct OAuthAccessTokenCache: Codable {
     let token: String
     let expiresAt: Date
 

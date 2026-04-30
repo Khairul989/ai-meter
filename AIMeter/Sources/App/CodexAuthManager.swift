@@ -17,7 +17,8 @@ struct CodexAccount: Identifiable, Equatable {
     let chatGPTAccountId: String?
 
     // OAuth PKCE upgrade fields — optional, fully backwards-compatible.
-    // When present, ClaudeCompatProxyService uses oauthAccessToken instead of the web-session token.
+    // When present, CodexTokenWarden uses oauthAccessTokenExpiresAt to schedule
+    // proactive refresh; oauthAccessToken is kept current by CodexOAuthService.
     var oauthRefreshToken: String?
     var oauthAccessToken: String?
     var oauthAccessTokenExpiresAt: Date?
@@ -660,28 +661,6 @@ private struct CodexIDTokenClaims: Decodable {
     }
 }
 
-// Minimal Decodable used to read the access-token cache blob from keychain.
-// The blob format is: { "token": "…", "expiresAt": "ISO8601" }
-// Defined here (not in CodexOAuthService) because loadCredentials/saveCredentials need it.
-private struct OAuthAccessTokenCache: Decodable {
-    let token: String
-    let expiresAt: Date
-
-    init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        token = try container.decode(String.self, forKey: .token)
-        let dateString = try container.decode(String.self, forKey: .expiresAt)
-        guard let date = ISO8601DateFormatter().date(from: dateString) else {
-            throw DecodingError.dataCorruptedError(
-                forKey: .expiresAt, in: container,
-                debugDescription: "Invalid ISO8601 date: \(dateString)"
-            )
-        }
-        expiresAt = date
-    }
-
-    enum CodingKeys: String, CodingKey { case token, expiresAt }
-}
 
 private enum CodexDateCodec {
     private static let formatter = ISO8601DateFormatter()

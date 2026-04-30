@@ -76,7 +76,7 @@ struct AIMeterApp: App {
     @StateObject private var kimiAuthManager: APIKeyAuthManager
     @StateObject private var codexService = CodexService()
     @StateObject private var codexAuthManager: CodexAuthManager
-    @StateObject private var claudeProxyRoutingManager: ClaudeProxyRoutingManager
+    @StateObject private var codexTokenWarden: CodexTokenWarden
     @StateObject private var codexStatsService = CodexSessionStatsService()
     @StateObject private var claudeSessionStatsService = ClaudeSessionStatsService()
     @StateObject private var minimaxService = MinimaxService()
@@ -110,7 +110,7 @@ struct AIMeterApp: App {
         let kimiAuthManager = APIKeyAuthManager(keychain: .kimi)
         let minimaxAuthManager = APIKeyAuthManager(keychain: .minimax)
         _codexAuthManager = StateObject(wrappedValue: codexAuthManager)
-        _claudeProxyRoutingManager = StateObject(wrappedValue: ClaudeProxyRoutingManager(codexAuthManager: codexAuthManager))
+        _codexTokenWarden = StateObject(wrappedValue: CodexTokenWarden(authManager: codexAuthManager, oauthService: CodexOAuthService.shared))
         _glmAuthManager = StateObject(wrappedValue: glmAuthManager)
         _kimiAuthManager = StateObject(wrappedValue: kimiAuthManager)
         _minimaxAuthManager = StateObject(wrappedValue: minimaxAuthManager)
@@ -227,6 +227,7 @@ struct AIMeterApp: App {
         }
         recapService?.checkAndGenerateRecap(notificationManager: NotificationManager.shared)
         GlobalHotKeyManager.shared.start()
+        codexTokenWarden.start()
     }
 
     private func handleOpenLatestRecap() {
@@ -250,7 +251,7 @@ struct AIMeterApp: App {
                 .environmentObject(kimiService)
                 .environmentObject(codexService)
                 .environmentObject(codexAuthManager)
-                .environmentObject(claudeProxyRoutingManager)
+                .environmentObject(codexTokenWarden)
                 .environmentObject(codexStatsService)
                 .environmentObject(apiKeyAuthManagers)
                 .environmentObject(minimaxService)
