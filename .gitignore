@@ -18,7 +18,7 @@ DerivedData/
 
 # Sparkle tools (binaries)
 scripts/sparkle-tools/
-.claude/agent-memory/code-reviewer/MEMORY.md
+**/.claude/agent-memory/
 
 # Secrets
 .env
