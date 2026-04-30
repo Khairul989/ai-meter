@@ -101,12 +101,19 @@ private struct MinimaxHeroView: View {
         data.highestIntervalPercent
     }
 
+    private var peakIntervalModel: MinimaxModelQuota? {
+        data.models.max(by: { $0.intervalPercent < $1.intervalPercent })
+    }
+
     private var topModelName: String {
-        guard let model = data.models.max(by: { $0.intervalPercent < $1.intervalPercent }) else {
+        guard let model = peakIntervalModel else {
             return "No model"
         }
         return model.displayName
     }
+
+    private var intervalUsed: Int { peakIntervalModel?.intervalUsed ?? 0 }
+    private var intervalTotal: Int { peakIntervalModel?.intervalTotal ?? 0 }
 
     private var intervalTone: Color {
         UsageColor.forUtilization(highestInterval)
@@ -152,7 +159,7 @@ private struct MinimaxHeroView: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
 
-            MinimaxDialGauge(percentage: highestInterval)
+            MinimaxDialGauge(percentage: highestInterval, used: intervalUsed, total: intervalTotal)
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 14)
@@ -184,6 +191,8 @@ private struct MinimaxHeroView: View {
 
 private struct MinimaxDialGauge: View {
     let percentage: Int
+    let used: Int
+    let total: Int
     private let segmentCount = 72
 
     private var progress: Double {
@@ -221,8 +230,8 @@ private struct MinimaxDialGauge: View {
                     .foregroundColor(MinimaxTelemetryTheme.secondaryText)
                     .textCase(.uppercase)
                     .tracking(0.7)
-                Text("\(percentage)%")
-                    .font(.system(size: 13, weight: .bold, design: .rounded))
+                Text("\(used)/\(total)")
+                    .font(.system(size: 11, weight: .bold, design: .rounded))
                     .foregroundColor(MinimaxTelemetryTheme.primaryText)
             }
         }
@@ -596,20 +605,11 @@ struct MinimaxTabView: View {
                         }
                     }
 
-                    MinimaxSectionCard(title: "Model Bank", subtitle: "Drill into model-level interval and weekly usage") {
+                    MinimaxSectionCard(title: "Model Bank", subtitle: "Drill into model-level weekly usage") {
                         VStack(spacing: 0) {
                             ForEach(sortedModels) { model in
                                 DisclosureGroup(isExpanded: isExpanded(model.modelName)) {
                                     VStack(spacing: 8) {
-                                        UsageCardView(
-                                            icon: "waveform.path",
-                                            title: "Interval",
-                                            subtitle: "\(model.intervalUsed)/\(model.intervalTotal) used",
-                                            percentage: model.intervalPercent,
-                                            resetText: ResetTimeFormatter.format(model.resetsAt, style: .countdown),
-                                            accentColor: ProviderTheme.minimax.accentColor
-                                        )
-
                                         UsageCardView(
                                             icon: "calendar.badge.clock",
                                             title: "Weekly",

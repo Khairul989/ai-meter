@@ -42,23 +42,25 @@ final class UsageService: PollingServiceBase {
         }
 
         do {
-            // Fetch main usage + extra usage in parallel
+            // Fetch main usage, extra usage, and plan name in parallel
             async let mainUsage = APIClient.fetchUsage(sessionKey: sessionKey, orgId: orgId)
             async let extraUsage = APIClient.fetchExtraUsage(sessionKey: sessionKey, orgId: orgId)
+            async let planNameFetch = APIClient.fetchPlanName(sessionKey: sessionKey, orgId: orgId)
 
             var data = try await mainUsage
-            let extra = await extraUsage
+            let extraCredits = await extraUsage
+            let planName = await planNameFetch
 
             // Merge plan name; use inline extra_usage if already parsed, otherwise fall back to overage endpoint credits
-            let mergedCredits = data.extraCredits ?? extra.credits
-            if mergedCredits != nil || extra.planName != nil {
+            let mergedCredits = data.extraCredits ?? extraCredits
+            if mergedCredits != nil || planName != nil {
                 data = UsageData(
                     fiveHour: data.fiveHour,
                     sevenDay: data.sevenDay,
                     sevenDaySonnet: data.sevenDaySonnet,
                     sevenDayDesign: data.sevenDayDesign,
                     extraCredits: mergedCredits,
-                    planName: extra.planName,
+                    planName: planName,
                     fetchedAt: data.fetchedAt
                 )
             }

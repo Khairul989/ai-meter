@@ -58,7 +58,7 @@ enum APIClient {
     }
 
     /// Fetch extra usage (overage spend limit) — optional, failures are non-fatal
-    static func fetchExtraUsage(sessionKey: String, orgId: String) async -> (credits: ExtraCredits?, planName: String?) {
+    static func fetchExtraUsage(sessionKey: String, orgId: String) async -> ExtraCredits? {
         let url = URL(string: "https://claude.ai/api/organizations/\(orgId)/overage_spend_limit")!
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
@@ -68,10 +68,42 @@ enum APIClient {
         guard let (data, response) = try? await session.data(for: request),
               let http = response as? HTTPURLResponse,
               http.statusCode == 200 else {
-            return (nil, nil)
+            return nil
         }
 
         return parseExtraUsage(data)
+    }
+
+    /// Fetch plan name from bootstrap endpoint — optional, failures are non-fatal
+    static func fetchPlanName(sessionKey: String, orgId: String) async -> String? {
+        let url = URL(string: "https://claude.ai/edge-api/bootstrap/\(orgId)/app_start?statsig_hashing_algorithm=djb2&growthbook_format=sdk&include_system_prompts=false")!
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.timeoutInterval = 15
+        ClaudeHeaderBuilder.applyHeaders(to: &request, sessionKey: sessionKey, orgId: orgId)
+
+        guard let (data, response) = try? await session.data(for: request),
+              let http = response as? HTTPURLResponse,
+              http.statusCode == 200,
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let account = json["account"] as? [String: Any],
+              let memberships = account["memberships"] as? [[String: Any]] else {
+            return nil
+        }
+
+        // Match the membership whose organization uuid matches our orgId
+        let membership = memberships.first { membership in
+            guard let org = membership["organization"] as? [String: Any],
+                  let uuid = org["uuid"] as? String else { return false }
+            return uuid == orgId
+        }
+
+        guard let org = membership?["organization"] as? [String: Any],
+              let tier = org["rate_limit_tier"] as? String else {
+            return nil
+        }
+
+        return SessionAuthManager.parsePlanName(rateLimitTier: tier)
     }
 
     // MARK: - Parsing
@@ -144,16 +176,13 @@ enum APIClient {
         return RateLimit(utilization: Int(utilization), resetsAt: resetsAt)
     }
 
-    static func parseExtraUsage(_ data: Data) -> (credits: ExtraCredits?, planName: String?) {
+    static func parseExtraUsage(_ data: Data) -> ExtraCredits? {
         guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-            return (nil, nil)
+            return nil
         }
 
-        let rawPlanName = json["seat_tier"] as? String
-        let planName = rawPlanName.flatMap { SessionAuthManager.parsePlanName(rateLimitTier: $0) } ?? rawPlanName
-
         guard let limitCents = json["spend_limit_amount_cents"] as? Int, limitCents > 0 else {
-            return (nil, planName)
+            return nil
         }
         let balanceCents = json["balance_cents"] as? Int ?? 0
         // Convert cents to dollars to match the inline extra_usage unit
@@ -161,6 +190,6 @@ enum APIClient {
         let used = Double(balanceCents) / 100
         let utilization = limit > 0 ? Int((used / limit) * 100) : 0
 
-        return (ExtraCredits(utilization: utilization, used: used, limit: limit), planName)
+        return ExtraCredits(utilization: utilization, used: used, limit: limit)
     }
 }

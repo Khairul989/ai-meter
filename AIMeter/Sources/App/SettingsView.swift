@@ -231,7 +231,6 @@ struct AccountsSettingsSection: View {
     @ObservedObject var glmAuthManager: APIKeyAuthManager
     @ObservedObject var kimiAuthManager: APIKeyAuthManager
     @ObservedObject var minimaxAuthManager: APIKeyAuthManager
-    @ObservedObject private var oauthService = CodexOAuthService.shared
 
     @AppStorage("hidePersonalInfo") private var hidePersonalInfo: Bool = false
 
@@ -245,8 +244,6 @@ struct AccountsSettingsSection: View {
     @State private var kimiKeyInput = ""
     @State private var minimaxLabelInput = ""
     @State private var minimaxKeyInput = ""
-    // Per-account OAuth error messages, keyed by account id. Auto-clears after 10 seconds.
-    @State private var oauthErrors: [String: String] = [:]
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -525,17 +522,9 @@ struct AccountsSettingsSection: View {
                                 .foregroundColor(account.id == codexAuthManager.activeAccountId ? .green : .secondary)
                                 .font(.system(size: 12))
                             VStack(alignment: .leading, spacing: 1) {
-                                HStack(spacing: 4) {
-                                    Text("Signed in")
-                                        .font(.system(size: 12))
-                                        .foregroundColor(.white)
-                                    if account.hasOAuthUpgrade {
-                                        Image(systemName: "bolt.fill")
-                                            .font(.system(size: 10, weight: .semibold))
-                                            .foregroundColor(.yellow)
-                                            .help("Fast-tier routing enabled")
-                                    }
-                                }
+                                Text("Signed in")
+                                    .font(.system(size: 12))
+                                    .foregroundColor(.white)
                                 Text(PersonalInfoRedactor.conditionalRedact(account.email, hideInfo: hidePersonalInfo) ?? account.id)
                                     .font(.system(size: 10))
                                     .foregroundColor(.secondary)
@@ -556,95 +545,6 @@ struct AccountsSettingsSection: View {
                             .font(.system(size: 11))
                             .buttonStyle(.plain)
                             .foregroundColor(.red)
-                        }
-
-                        // OAuth upgrade controls
-                        let isPending = oauthService.pendingLoginAccountID == account.id
-                        let anyPending = oauthService.pendingLoginAccountID != nil
-
-                        if account.hasOAuthUpgrade {
-                            HStack(spacing: 10) {
-                                Button("Re-authenticate OAuth") {
-                                    oauthErrors[account.id] = nil
-                                    Task {
-                                        do {
-                                            _ = try await CodexOAuthService.shared.startLogin(
-                                                for: account.id,
-                                                expectedChatGPTAccountID: account.chatGPTAccountId
-                                            )
-                                            codexAuthManager.reloadAccount(id: account.id)
-                                        } catch CodexOAuthError.cancelled {
-                                            // user-initiated cancel, no error surface needed
-                                        } catch {
-                                            showOAuthError(error.localizedDescription, for: account.id)
-                                        }
-                                    }
-                                }
-                                .font(.system(size: 10))
-                                .buttonStyle(.plain)
-                                .foregroundColor(.accentColor)
-                                .disabled(anyPending)
-
-                                Button("Remove OAuth") {
-                                    oauthErrors[account.id] = nil
-                                    CodexOAuthService.shared.revokeLocalTokens(for: account.id)
-                                    codexAuthManager.reloadAccount(id: account.id)
-                                }
-                                .font(.system(size: 10))
-                                .buttonStyle(.plain)
-                                .foregroundColor(.orange)
-                                .disabled(anyPending)
-                            }
-                            .padding(.leading, 22)
-                        } else {
-                            // Show upgrade button or in-progress indicator
-                            if isPending {
-                                HStack(spacing: 6) {
-                                    ProgressView()
-                                        .scaleEffect(0.6)
-                                        .frame(width: 12, height: 12)
-                                    Text("Signing in…")
-                                        .font(.system(size: 10))
-                                        .foregroundColor(.secondary)
-                                    Button("Cancel") {
-                                        Task { await oauthService.cancelPendingLogin() }
-                                    }
-                                    .font(.system(size: 10))
-                                    .buttonStyle(.link)
-                                }
-                                .padding(.leading, 22)
-                            } else {
-                                Button {
-                                    oauthErrors[account.id] = nil
-                                    Task {
-                                        do {
-                                            _ = try await CodexOAuthService.shared.startLogin(
-                                                for: account.id,
-                                                expectedChatGPTAccountID: account.chatGPTAccountId
-                                            )
-                                            codexAuthManager.reloadAccount(id: account.id)
-                                        } catch CodexOAuthError.cancelled {
-                                            // user-initiated cancel, no error surface needed
-                                        } catch {
-                                            showOAuthError(error.localizedDescription, for: account.id)
-                                        }
-                                    }
-                                } label: {
-                                    Label("Upgrade for fast routing", systemImage: "bolt.fill")
-                                        .font(.system(size: 10))
-                                }
-                                .buttonStyle(.plain)
-                                .foregroundColor(.yellow)
-                                .disabled(anyPending)
-                                .padding(.leading, 22)
-                            }
-                        }
-
-                        if let errorMsg = oauthErrors[account.id] {
-                            Text(errorMsg)
-                                .font(.system(size: 10))
-                                .foregroundColor(.red)
-                                .padding(.leading, 22)
                         }
                     }
                 }
@@ -688,14 +588,6 @@ struct AccountsSettingsSection: View {
         }
     }
 
-    /// Shows an inline OAuth error for the given account for 10 seconds, then auto-clears it.
-    private func showOAuthError(_ message: String, for accountID: String) {
-        oauthErrors[accountID] = message
-        Task {
-            try? await Task.sleep(for: .seconds(10))
-            oauthErrors[accountID] = nil
-        }
-    }
 
     private var copilotCard: some View {
         settingsSectionCard {

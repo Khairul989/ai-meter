@@ -42,19 +42,23 @@ final class APIClientTests: XCTestCase {
         }
     }
 
-    func testParseExtraUsageNormalizesSeatTierPlanName() {
+    func testParseExtraUsageCredits() {
         let json = """
         {
-            "seat_tier": "max_20x",
             "spend_limit_amount_cents": 2500,
             "balance_cents": 1250
         }
         """.data(using: .utf8)!
 
-        let result = APIClient.parseExtraUsage(json)
-        XCTAssertEqual(result.planName, "Max 20×")
-        XCTAssertEqual(result.credits?.limit, 25.0)
-        XCTAssertEqual(result.credits?.used, 12.5)
-        XCTAssertEqual(result.credits?.utilization, 50)
+        let credits = APIClient.parseExtraUsage(json)
+        XCTAssertEqual(credits?.limit, 25.0)
+        XCTAssertEqual(credits?.used, 12.5)
+        XCTAssertEqual(credits?.utilization, 50)
+    }
+
+    func testParsePlanNameFromBootstrapTier() {
+        XCTAssertEqual(SessionAuthManager.parsePlanName(rateLimitTier: "default_claude_max_20x"), "Max 20×")
+        XCTAssertEqual(SessionAuthManager.parsePlanName(rateLimitTier: "default_claude_pro"), "Pro")
+        XCTAssertNil(SessionAuthManager.parsePlanName(rateLimitTier: "auto_api_evaluation"))
     }
 }

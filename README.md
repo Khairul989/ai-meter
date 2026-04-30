@@ -27,7 +27,25 @@ AIMeter sits in your menu bar and shows your Claude API usage at a glance — se
 
 ## Screenshots
 
-Coming soon.
+### Quota Popover
+
+| Claude | Copilot |
+|:---:|:---:|
+| <img src="docs/screenshots/claude_quota.jpeg" width="320" alt="Claude quota popover"> | <img src="docs/screenshots/copilot_quota.jpeg" width="320" alt="Copilot quota popover"> |
+| Session telemetry, limit bank, pace tracking, and model insight | Monthly quota, lane breakdown, and recent activity chart |
+
+### Analytics Window
+
+<img src="docs/screenshots/claude_analytics.jpeg" width="680" alt="Claude Analytics window">
+
+Deep-dive into session history — visible tokens, cache leverage, model distribution, and daily traffic trends across your Claude Code sessions.
+
+### Settings
+
+| Display | Keyboard Shortcuts |
+|:---:|:---:|
+| <img src="docs/screenshots/display_settings.jpeg" width="320" alt="Display settings"> | <img src="docs/screenshots/keyboard_shortcuts.jpeg" width="320" alt="Keyboard shortcuts"> |
+| Navigation style, refresh interval, timezone, color thresholds, and provider order | Full keyboard navigation map for power users |
 
 ---
 

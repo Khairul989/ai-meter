@@ -359,7 +359,8 @@ final class CodexSessionStatsService: ObservableObject {
 
     nonisolated private static func readSessions(from dbURL: URL, promptCounts: [String: Int]) throws -> [CodexSessionRecord] {
         var db: OpaquePointer?
-        guard sqlite3_open_v2(dbURL.path, &db, SQLITE_OPEN_READONLY, nil) == SQLITE_OK else {
+        let uri = "file:\(dbURL.path.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? dbURL.path)?immutable=1"
+        guard sqlite3_open_v2(uri, &db, SQLITE_OPEN_READONLY | SQLITE_OPEN_URI, nil) == SQLITE_OK else {
             defer { if db != nil { sqlite3_close(db) } }
             let message = db.flatMap { String(cString: sqlite3_errmsg($0)) } ?? "Unknown SQLite error"
             throw NSError(domain: "CodexSessionStatsService", code: 2, userInfo: [

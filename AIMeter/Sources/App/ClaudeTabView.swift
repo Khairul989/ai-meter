@@ -35,6 +35,7 @@ private struct ClaudeLimitRow: Identifiable {
     let subtitle: String
     let percentage: Int
     let detail: String
+    var pace: UsagePace.Result? = nil
 }
 
 private struct ClaudeAnalyticsSummary: Identifiable {
@@ -199,6 +200,7 @@ private struct ClaudeHeroView: View {
     let timeZone: TimeZone
     let pace: UsagePace.Result?
     let now: Date
+    let onRefresh: () -> Void
 
     private var urgencyText: String? {
         pace?.etaDescription
@@ -242,6 +244,15 @@ private struct ClaudeHeroView: View {
     }
 
     var body: some View {
+        Button(action: onRefresh) {
+            heroCard
+        }
+        .buttonStyle(.plain)
+        .contentShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .help("Refresh quota (⌘R)")
+    }
+
+    private var heroCard: some View {
         HStack(alignment: .center, spacing: 12) {
             VStack(alignment: .leading, spacing: 8) {
                 Text("Session Telemetry")
@@ -365,6 +376,39 @@ private struct ClaudeLimitsListView: View {
 
                         ProgressBarView(percentage: row.percentage, height: 4)
                             .frame(height: 4)
+
+                        if let pace = row.pace {
+                            HStack(spacing: 6) {
+                                let paceLabel: String = {
+                                    switch pace.stage {
+                                    case .farBehind, .behind, .slightlyBehind: return "Conservative"
+                                    case .onTrack: return "Steady"
+                                    case .slightlyAhead, .ahead, .farAhead: return "Aggressive"
+                                    }
+                                }()
+                                let delta = Int(abs(pace.deltaPercent).rounded())
+                                let sign = pace.deltaPercent >= 0 ? "+" : "-"
+                                let paceColor = UsageColor.forUtilization(row.percentage)
+
+                                Text(paceLabel)
+                                    .font(.system(size: 9, weight: .bold, design: .monospaced))
+                                    .foregroundColor(paceColor)
+                                    .textCase(.uppercase)
+                                    .tracking(0.4)
+                                    .padding(.horizontal, 5)
+                                    .padding(.vertical, 2)
+                                    .background(paceColor.opacity(0.14))
+                                    .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
+
+                                if delta >= 1 {
+                                    Text("\(sign)\(delta)%")
+                                        .font(.system(size: 9, weight: .medium, design: .monospaced))
+                                        .foregroundColor(ClaudeTelemetryTheme.tertiaryText)
+                                }
+
+                                Spacer(minLength: 0)
+                            }
+                        }
                     }
                     .padding(.vertical, 10)
 
@@ -521,7 +565,8 @@ struct ClaudeTabView: View {
                         windowDurationHours: 5.0,
                         now: context.date
                     ),
-                    now: context.date
+                    now: context.date,
+                    onRefresh: onRefresh
                 )
             }
 
@@ -582,14 +627,20 @@ struct ClaudeTabView: View {
     }
 
     private var limitRows: [ClaudeLimitRow] {
+        let weeklyData = service.usageData.sevenDay
         var rows: [ClaudeLimitRow] = [
             ClaudeLimitRow(
                 id: "weekly",
                 icon: "chart.bar.fill",
                 title: "Weekly",
                 subtitle: "All models",
-                percentage: service.usageData.sevenDay.utilization,
-                detail: limitDetail(service.usageData.sevenDay.resetsAt)
+                percentage: weeklyData.utilization,
+                detail: limitDetail(weeklyData.resetsAt),
+                pace: UsagePace.calculate(
+                    usagePercent: weeklyData.utilization,
+                    resetsAt: weeklyData.resetsAt,
+                    windowDurationHours: 168.0
+                )
             )
         ]
 
@@ -600,7 +651,12 @@ struct ClaudeTabView: View {
                 title: "Sonnet",
                 subtitle: "Dedicated limit",
                 percentage: sonnet.utilization,
-                detail: limitDetail(sonnet.resetsAt)
+                detail: limitDetail(sonnet.resetsAt),
+                pace: UsagePace.calculate(
+                    usagePercent: sonnet.utilization,
+                    resetsAt: sonnet.resetsAt,
+                    windowDurationHours: 168.0
+                )
             ))
         }
 

@@ -877,7 +877,11 @@ struct CodexTabView: View {
                 }
             } else if case .rateLimited = codexService.error {
                 ErrorBannerView(message: "Rate limited — retrying", retryDate: codexService.retryDate)
-            } else if let account = codexAuthManager.activeAccount, codexTokenWarden.requiresManualSignIn(account) {
+            } else if let account = codexAuthManager.activeAccount,
+                      account.hasOAuthUpgrade,
+                      codexTokenWarden.requiresManualSignIn(account) {
+                tokenExpiredBanner
+            } else if codexService.error == .tokenExpired {
                 tokenExpiredBanner
             }
 

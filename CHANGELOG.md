@@ -7,21 +7,55 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [2.0.0] - 2026-04-19
+## [2.3.0] - 2026-04-30
+
+### Added
+
+- Proactive Codex token refresh: tokens self-renew at `expiresAt − 5min` per OAuth-upgraded account, with foreground hook on app activation and exponential backoff on transient failure
+- "Session expired" banner now driven by terminal refresh failure (HTTP 400 `invalid_grant` / 401), not bare expiry — OAuth-upgraded accounts no longer surface the banner during normal use
+
+### Removed
+
+- Claude-compat proxy (Codex → Claude routing): `ClaudeCompatProxyService` and `ClaudeProxyStore` deleted along with the routing UI in the Claude tab. Codex CLI proxy on port 2455 and Claude transcript parsing remain untouched.
+
+## [2.2.0] - 2026-04-26
+
+### Added
+
+- Session Telemetry card is now tappable to refresh quota, with full accessibility support (Button, VoiceOver, keyboard, tooltip)
+- README screenshots showcasing quota popover, analytics window, and settings
+
+### Changed
+
+- Settings screenshot width normalized to 320px to prevent mobile overflow on GitHub
+
+## [2.1.0] - 2026-04-22
+
+### Added
+
+- Sonnet dedicated-limit row on the Claude tab now shows the same weekly pace indicator as the overall 7-day Claude limit
+
+## [2.0.0] - 2026-04-20
 
 ### Added
 
 - Dedicated Claude analytics window with redesigned model distribution and daily traffic panels
+- Dedicated Codex analytics window with session telemetry sourced from local `~/.codex` state
+- Weekly pace indicator on the Claude 7-day limit row, mirroring the 5-hour session pace
 
 ### Changed
 
 - Major Mac-first visual redesign across the app with new telemetry-inspired surfaces, navigation, and provider presentation
 - Claude quota popover rebuilt around a session hero, grouped limits, cleaner pacing signals, and a more native analytics split
 - Codex popover redesigned with a provider-specific telemetry layout, slimmer status sections, and updated footer treatment
+- MiniMax hero gauge now shows raw request counts (used / total) instead of just a percentage
+- MiniMax Model Bank focuses on weekly usage, removing the redundant interval card
+- Claude plan detection migrated to the bootstrap endpoint after `seat_tier` became unreliable upstream
 - App icon replaced with the new owl branding
 
 ### Fixed
 
+- Codex Analytics "unable to open database file" error when `state_5.sqlite` is in WAL mode without sidecars
 - Claude pace messaging now shows the steady-pace delta again alongside the reset and runout guidance
 - Release icon assets now use the updated full-background owl icon set at every macOS size
 
