@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.4.0] - 2026-04-30
+
+### Added
+
+- Fast PKCE OAuth sign-in wired into the Codex tab UI. Primary "Sign in with ChatGPT" button, "Add Account" menu item, and token-expired banner re-auth now open the system browser → `localhost:1455` callback → keychain — no more WKWebView spinner on the happy path
+- "Trouble signing in?" fallback link surfaces below the primary button when PKCE fails, preserving the WKWebView path as a safety net
+- New `CodexOAuthError.callbackServerBindFailed(underlying:)` distinguishes non-port bind failures from `EADDRINUSE`
+
+### Changed
+
+- `CodexOAuthService.startLogin` split into `performLoginFlow` (returns tokens) + `saveOAuthTokens` (persists). Caller picks the canonical accountID after decoding the email claim — no more brittle `pending_oauth_login` rekey
+- Callback server now binds before opening the browser, closing a startup race where a fast redirect could beat the listener
+- `accountMismatch` is now a logged warning instead of a hard throw — same-email plan/org changes no longer block re-auth
+
+### Fixed
+
+- Proxy bearer + `reloadAccount` now fall back to `.oauthAccessTokenCache` when the legacy `.accessToken` slot is empty. The proactive token warden's refreshes are finally observable to the network layer (v2.3.0 latent bug)
+- Callback server uses async NIO `.get()` and `shutdownGracefully()` instead of `.wait()` / `syncShutdownGracefully()` — no more blocking calls on the main actor
+- Cancelling a pending OAuth login now surfaces as `.cancelled` instead of `.invalidTokenResponse`
+
 ## [2.3.0] - 2026-04-30
 
 ### Added

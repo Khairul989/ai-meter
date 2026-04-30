@@ -39,6 +39,7 @@ enum CodexOAuthError: Error, LocalizedError {
     case accountMismatch(expected: String, got: String?)
     case tokenExchangeFailed(status: Int, message: String)
     case invalidTokenResponse
+    case callbackServerBindFailed(underlying: Error)
 
     var errorDescription: String? {
         switch self {
@@ -59,6 +60,8 @@ enum CodexOAuthError: Error, LocalizedError {
             return "Token exchange failed (HTTP \(status)): \(message)"
         case .invalidTokenResponse:
             return "The server returned an unexpected token response. Please try again."
+        case .callbackServerBindFailed(let underlying):
+            return "Couldn't start the local sign-in server: \(underlying.localizedDescription)"
         }
     }
 }
@@ -94,66 +97,84 @@ final class CodexOAuthService: ObservableObject {
 
     // MARK: - Public API
 
-    /// Starts the PKCE login flow for the given account.
-    /// Returns the full token set on success.
-    /// If `expectedChatGPTAccountID` is non-nil, the signed-in account must match it.
-    func startLogin(
-        for accountID: String,
-        expectedChatGPTAccountID: String?
-    ) async throws -> CodexOAuthTokens {
-        pendingLoginAccountID = accountID
+    /// Runs the PKCE flow and returns tokens. Does NOT persist to keychain.
+    /// Caller decodes the email from idToken, picks the canonical accountID, and calls
+    /// saveOAuthTokens(_:for:) afterwards — one write, one ID, no rekey needed.
+    /// If `expectedChatGPTAccountID` is non-nil and the returned account differs,
+    /// a warning is logged but the flow proceeds; caller decides policy.
+    func performLoginFlow(expectedChatGPTAccountID: String?) async throws -> CodexOAuthTokens {
         lastError = nil
-        logger.info("oauth.login.started account=\(accountID, privacy: .public)")
-
-        defer {
-            pendingLoginAccountID = nil
-            pendingCallbackServer = nil
-        }
+        logger.info("oauth.login.started")
 
         // Step 1: Generate PKCE codes and state
         let verifier = generateCodeVerifier()
         let challenge = codeChallenge(for: verifier)
         let state = generateState()
 
-        // Step 2: Build authorize URL and open browser
-        let authorizeURL = buildAuthorizeURL(challenge: challenge, state: state)
-        logger.info("oauth.login.browser_opened account=\(accountID, privacy: .public)")
-
-        guard NSWorkspace.shared.open(authorizeURL) else {
-            throw CodexOAuthError.browserLaunchFailed
-        }
-
-        // Step 3: Start local callback server and wait for redirect.
-        // Keep a reference so cancelPendingLogin() can stop the server mid-flight.
+        // Step 2: Bind the callback server BEFORE opening the browser so the port
+        // is ready when the redirect arrives. Bind errors surface their real cause
+        // (.portInUse for EADDRINUSE, .callbackServerBindFailed for everything else).
         let server = CodexOAuthCallbackServer()
         pendingCallbackServer = server
-        let (code, returnedState) = try await server.listen(expectedState: state)
+        try await server.bind(expectedState: state)
+
+        // Step 3: Open browser. If launch fails, shut down the bound server so port 1455
+        // is freed immediately — the defer below only nils the reference.
+        let authorizeURL = buildAuthorizeURL(challenge: challenge, state: state)
+        guard NSWorkspace.shared.open(authorizeURL) else {
+            await server.stop()
+            throw CodexOAuthError.browserLaunchFailed
+        }
+        logger.info("oauth.login.browser_opened")
+
+        // Step 4: Await the redirect callback.
+        let (code, returnedState) = try await server.awaitCallback(expectedState: state)
         server.shutdown()
 
-        // Step 4: Validate state (belt-and-suspenders; server already checks this)
+        // Step 5: Validate state (belt-and-suspenders; server already checks this)
         guard returnedState == state else {
             throw CodexOAuthError.stateMismatch
         }
 
-        // Step 5: Exchange code for tokens
+        // Step 6: Exchange code for tokens
         let tokens = try await exchangeCodeForTokens(code: code, verifier: verifier)
-        logger.info(
-            "oauth.token_exchange.success account=\(accountID, privacy: .public) expires=\(tokens.expiresAt, privacy: .public)"
-        )
+        logger.info("oauth.token_exchange.success expires=\(tokens.expiresAt, privacy: .public)")
 
-        // Step 6: Validate chatgpt_account_id if caller requires it
-        if let expected = expectedChatGPTAccountID {
-            guard tokens.chatGPTAccountID == expected else {
-                logger.warning(
-                    "oauth.login.account_mismatch expected=\(expected, privacy: .public) got=\(tokens.chatGPTAccountID ?? "nil", privacy: .public)"
-                )
-                throw CodexOAuthError.accountMismatch(expected: expected, got: tokens.chatGPTAccountID)
-            }
+        // Step 7: Informational account-ID check — log mismatch but do not throw.
+        // Re-auth callers already know the email; plan-/org-switches must not block sign-in.
+        if let expected = expectedChatGPTAccountID, tokens.chatGPTAccountID != expected {
+            logger.warning(
+                "oauth.account_mismatch.proceeding expected=\(expected, privacy: .public) got=\(tokens.chatGPTAccountID ?? "nil", privacy: .public)"
+            )
         }
 
-        // Step 7: Persist tokens to keychain
-        saveTokens(tokens, for: accountID)
+        return tokens
+    }
 
+    /// Persists tokens under the given accountID. Writes to `.oauthRefreshToken` and
+    /// `.oauthAccessTokenCache`. Call this once you have the canonical accountID
+    /// (typically the email decoded from idToken claims).
+    func saveOAuthTokens(_ tokens: CodexOAuthTokens, for accountID: String) {
+        saveTokens(tokens, for: accountID)
+        logger.info("oauth.tokens.saved account=\(accountID, privacy: .public)")
+    }
+
+    /// Starts the PKCE login flow for the given account and immediately persists tokens.
+    /// Thin wrapper over performLoginFlow + saveOAuthTokens — preserves the v2.3.0
+    /// surface for any existing call sites (warden reactive-401 retry, etc.).
+    func startLogin(
+        for accountID: String,
+        expectedChatGPTAccountID: String?
+    ) async throws -> CodexOAuthTokens {
+        pendingLoginAccountID = accountID
+        defer {
+            pendingLoginAccountID = nil
+            pendingCallbackServer = nil
+        }
+
+        let tokens = try await performLoginFlow(expectedChatGPTAccountID: expectedChatGPTAccountID)
+        saveOAuthTokens(tokens, for: accountID)
+        logger.info("oauth.login.success account=\(accountID, privacy: .public)")
         return tokens
     }
 

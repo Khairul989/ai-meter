@@ -348,7 +348,7 @@ final class CodexProxyService: ObservableObject {
         request.httpBody = body.isEmpty ? nil : body
         request.timeoutInterval = 60
 
-        for (name, value) in buildHTTPHeaders(from: headers, context: context) {
+        for (name, value) in await buildHTTPHeaders(from: headers, context: context) {
             request.setValue(value, forHTTPHeaderField: name)
         }
 
@@ -483,7 +483,16 @@ final class CodexProxyService: ObservableObject {
     }
 
     private func accountContext(for accountId: String) -> ActiveAccountContext? {
-        guard let accessToken = CodexSessionKeychain.read(account: .accessToken, accountId: accountId) else {
+        let legacyToken = CodexSessionKeychain.read(account: .accessToken, accountId: accountId)
+        let oauthCache: OAuthAccessTokenCache? = {
+            guard let json = CodexSessionKeychain.read(account: .oauthAccessTokenCache, accountId: accountId),
+                  let data = json.data(using: .utf8),
+                  let cache = try? JSONDecoder().decode(OAuthAccessTokenCache.self, from: data) else {
+                return nil
+            }
+            return cache
+        }()
+        guard let accessToken = legacyToken ?? oauthCache?.token else {
             return nil
         }
 
@@ -553,9 +562,11 @@ final class CodexProxyService: ObservableObject {
     private func buildHTTPHeaders(
         from headers: [(String, String)],
         context: ActiveAccountContext
-    ) -> [(String, String)] {
+    ) async -> [(String, String)] {
         var filtered: [(String, String)] = headers.filter { !shouldStripInboundHeader($0.0) }
-        filtered.append(("Authorization", "Bearer \(context.accessToken)"))
+        let bearer = (try? await CodexOAuthService.shared.currentAccessToken(for: context.accountId))
+            ?? context.accessToken
+        filtered.append(("Authorization", "Bearer \(bearer)"))
         filtered.append(("chatgpt-account-id", context.chatGPTAccountId))
         return filtered
     }

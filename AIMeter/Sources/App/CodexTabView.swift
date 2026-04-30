@@ -461,7 +461,7 @@ private struct CodexControlPlaneView: View {
                 Divider()
 
                 Button {
-                    codexAuthManager.openLoginWindow()
+                    Task { await codexAuthManager.signInWithOAuth() }
                 } label: {
                     Label("Add Account", systemImage: "plus")
                 }
@@ -880,9 +880,9 @@ struct CodexTabView: View {
             } else if let account = codexAuthManager.activeAccount,
                       account.hasOAuthUpgrade,
                       codexTokenWarden.requiresManualSignIn(account) {
-                tokenExpiredBanner
-            } else if codexService.error == .tokenExpired {
-                tokenExpiredBanner
+                tokenExpiredBanner(accountID: account.id)
+            } else if codexService.error == .tokenExpired, let account = codexAuthManager.activeAccount {
+                tokenExpiredBanner(accountID: account.id)
             }
 
             if let status = providerStatus, status.indicator != "none" {
@@ -1055,7 +1055,7 @@ struct CodexTabView: View {
                 }
 
                 Button {
-                    codexAuthManager.openLoginWindow()
+                    Task { await codexAuthManager.signInWithOAuth() }
                 } label: {
                     Text("Sign in with ChatGPT")
                         .font(.system(size: 12, weight: .bold, design: .rounded))
@@ -1067,6 +1067,15 @@ struct CodexTabView: View {
                 }
                 .buttonStyle(.plain)
                 .disabled(codexAuthManager.isLoggingIn)
+
+                if codexAuthManager.lastError != nil {
+                    Button("Trouble signing in? Use legacy sign-in") {
+                        codexAuthManager.openLoginWindow()
+                    }
+                    .font(.system(size: 10))
+                    .buttonStyle(.plain)
+                    .foregroundColor(CodexTelemetryTheme.secondaryText)
+                }
 
                 if codexAuthManager.isLoggingIn {
                     HStack(spacing: 5) {
@@ -1099,7 +1108,7 @@ struct CodexTabView: View {
         }
     }
 
-    private var tokenExpiredBanner: some View {
+    private func tokenExpiredBanner(accountID: String) -> some View {
         HStack(spacing: 6) {
             Image(systemName: "exclamationmark.triangle.fill")
                 .foregroundColor(.orange)
@@ -1109,7 +1118,7 @@ struct CodexTabView: View {
                 .foregroundColor(.orange)
             Spacer()
             Button("Sign in") {
-                codexAuthManager.openLoginWindow()
+                Task { await codexAuthManager.reAuthWithOAuth(accountID: accountID) }
             }
             .font(.system(size: 11, weight: .medium))
             .buttonStyle(.plain)

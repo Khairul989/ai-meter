@@ -275,26 +275,24 @@ final class CodexAuthManager: ObservableObject {
     /// Re-reads keychain for a single account and publishes the updated struct.
     /// Called after OAuth upgrade or token revocation so the UI and proxy see the new state.
     func reloadAccount(id: String) {
-        guard let token = CodexSessionKeychain.read(account: .accessToken, accountId: id) else { return }
+        let legacyToken = CodexSessionKeychain.read(account: .accessToken, accountId: id)
+        let oauthCache: OAuthAccessTokenCache? = {
+            guard let cacheJson = CodexSessionKeychain.read(account: .oauthAccessTokenCache, accountId: id),
+                  let cacheData = cacheJson.data(using: .utf8) else { return nil }
+            return try? JSONDecoder().decode(OAuthAccessTokenCache.self, from: cacheData)
+        }()
+        guard let token = legacyToken ?? oauthCache?.token else { return }
         let email = CodexSessionKeychain.read(account: .email, accountId: id) ?? id
         let plan = CodexSessionKeychain.read(account: .planType, accountId: id)
         let idToken = CodexSessionKeychain.read(account: .idToken, accountId: id)
         let refreshToken = CodexSessionKeychain.read(account: .refreshToken, accountId: id)
-        let expiresAt = CodexSessionKeychain.read(account: .expiresAt, accountId: id)
+        let legacyExpiresAt = CodexSessionKeychain.read(account: .expiresAt, accountId: id)
             .flatMap(CodexDateCodec.decode)
+        let expiresAt = legacyExpiresAt ?? (legacyToken == nil ? oauthCache?.expiresAt : nil)
         let chatGPTAccountId = CodexSessionKeychain.read(account: .chatGPTAccountId, accountId: id)
         let oauthRefreshToken = CodexSessionKeychain.read(account: .oauthRefreshToken, accountId: id)
-        let oauthAccessToken: String?
-        let oauthAccessTokenExpiresAt: Date?
-        if let cacheJson = CodexSessionKeychain.read(account: .oauthAccessTokenCache, accountId: id),
-           let cacheData = cacheJson.data(using: .utf8),
-           let cache = try? JSONDecoder().decode(OAuthAccessTokenCache.self, from: cacheData) {
-            oauthAccessToken = cache.token
-            oauthAccessTokenExpiresAt = cache.expiresAt
-        } else {
-            oauthAccessToken = nil
-            oauthAccessTokenExpiresAt = nil
-        }
+        let oauthAccessToken: String? = oauthCache?.token
+        let oauthAccessTokenExpiresAt: Date? = oauthCache?.expiresAt
         var updated = CodexAccount(
             id: id,
             accessToken: token,
@@ -327,6 +325,92 @@ final class CodexAuthManager: ObservableObject {
     func loginFailed(_ message: String) {
         isLoggingIn = false
         lastError = message
+    }
+
+    // MARK: - PKCE OAuth Sign-In
+
+    /// First-time PKCE sign-in. Runs the full OAuth flow, decodes the email from the
+    /// ID token, persists OAuth tokens under that email, then calls saveCredentials so
+    /// the account appears in the account list and the proxy starts.
+    @MainActor
+    func signInWithOAuth() async {
+        isLoggingIn = true
+        lastError = nil
+        defer { isLoggingIn = false }
+        do {
+            let tokens = try await CodexOAuthService.shared.performLoginFlow(
+                expectedChatGPTAccountID: nil
+            )
+            let claims = CodexIDTokenClaims.decode(from: tokens.idToken)
+            guard let email = claims?.email else {
+                lastError = "Sign-in succeeded but the ID token has no email claim. Try the legacy sign-in."
+                return
+            }
+            // Persist OAuth tokens FIRST under canonical ID, then call saveCredentials
+            // so reloadAccount and saveCredentials see them.
+            CodexOAuthService.shared.saveOAuthTokens(tokens, for: email)
+            saveCredentials(
+                accessToken: tokens.accessToken,
+                idToken: tokens.idToken,
+                refreshToken: tokens.refreshToken,
+                expiresAt: tokens.expiresAt,
+                email: email,
+                planType: claims?.planType,
+                chatGPTAccountId: tokens.chatGPTAccountID
+            )
+        } catch {
+            lastError = friendlyOAuthError(error)
+        }
+    }
+
+    /// Re-auth flow for an existing account (e.g. triggered from an expired-session banner).
+    /// Passes nil as expectedChatGPTAccountID so account switches don't block the flow;
+    /// the returned email is compared to the known accountID and rejected if it differs.
+    @MainActor
+    func reAuthWithOAuth(accountID: String) async {
+        isLoggingIn = true
+        lastError = nil
+        defer { isLoggingIn = false }
+        do {
+            let tokens = try await CodexOAuthService.shared.performLoginFlow(
+                expectedChatGPTAccountID: nil  // informational; do not reject
+            )
+            let claims = CodexIDTokenClaims.decode(from: tokens.idToken)
+            let returnedEmail = claims?.email
+            if let returnedEmail, returnedEmail != accountID {
+                lastError = "Re-auth used a different email (\(returnedEmail)). Sign out and sign in fresh."
+                return
+            }
+            CodexOAuthService.shared.saveOAuthTokens(tokens, for: accountID)
+            saveCredentials(
+                accessToken: tokens.accessToken,
+                idToken: tokens.idToken,
+                refreshToken: tokens.refreshToken,
+                expiresAt: tokens.expiresAt,
+                email: returnedEmail ?? accountID,
+                planType: claims?.planType,
+                chatGPTAccountId: tokens.chatGPTAccountID
+            )
+        } catch {
+            lastError = friendlyOAuthError(error)
+        }
+    }
+
+    /// Maps OAuth errors to user-facing strings.
+    private func friendlyOAuthError(_ error: Error) -> String {
+        switch error {
+        case CodexOAuthError.cancelled: return "Sign-in cancelled."
+        case CodexOAuthError.portInUse:
+            return "Port 1455 is in use. Quit the OpenAI Codex CLI (or any other Codex/ChatGPT client using it) and retry."
+        case CodexOAuthError.callbackServerBindFailed(let underlying):
+            return "Couldn't start the local sign-in server: \(underlying.localizedDescription)"
+        case CodexOAuthError.browserLaunchFailed: return "Couldn't open the browser for sign-in."
+        case CodexOAuthError.callbackTimeout: return "Sign-in timed out waiting for the browser."
+        case CodexOAuthError.stateMismatch: return "Sign-in failed: state mismatch."
+        case CodexOAuthError.tokenExchangeFailed(let status, _): return "Token exchange failed (\(status))."
+        case CodexOAuthError.invalidTokenResponse: return "Invalid response from the token endpoint."
+        default: return error.localizedDescription
+        }
     }
 
     private func bindProxyService() {

@@ -20,69 +20,95 @@ final class CodexOAuthCallbackServer {
     private var group: MultiThreadedEventLoopGroup?
     private var serverChannel: Channel?
     // Retained so stop() can signal the handler's continuation with .cancelled.
-    private var callbackHandler: CodexOAuthCallbackHandler?
+    private var pendingHandler: CodexOAuthCallbackHandler?
+    // Fix 3: tracks whether stop() was called so awaitCallback can throw .cancelled.
+    private var didCancel = false
 
-    // listen(state:) validates that the returned state matches the expected value.
-    func listen(expectedState: String) async throws -> (code: String, state: String) {
-        return try await withCheckedThrowingContinuation { continuation in
-            // Capture so the handler can resume exactly once.
-            let callbackHandler = CodexOAuthCallbackHandler(
-                expectedState: expectedState,
-                continuation: continuation
-            )
-            self.callbackHandler = callbackHandler
+    /// Binds `127.0.0.1:1455` and returns once the port is accepting connections.
+    /// Must be called before `awaitCallback(expectedState:)`.
+    func bind(expectedState: String) async throws {
+        // Fix 3: reset cancel flag on each fresh bind.
+        didCancel = false
 
-            let group = MultiThreadedEventLoopGroup(numberOfThreads: 1)
-            self.group = group
+        let group = MultiThreadedEventLoopGroup(numberOfThreads: 1)
+        self.group = group
 
-            let bootstrap = ServerBootstrap(group: group)
-                .serverChannelOption(ChannelOptions.socketOption(.so_reuseaddr), value: 1)
-                .childChannelInitializer { channel in
-                    channel.pipeline.configureHTTPServerPipeline(withErrorHandling: false)
-                        .flatMap { channel.pipeline.addHandler(callbackHandler) }
-                }
-                .childChannelOption(ChannelOptions.socketOption(.so_reuseaddr), value: 1)
-                .childChannelOption(ChannelOptions.maxMessagesPerRead, value: 4)
+        // Fix 1: construct handler before bind so requests arriving immediately are buffered.
+        let handler = CodexOAuthCallbackHandler(expectedState: expectedState)
+        self.pendingHandler = handler
 
-            do {
-                // Bind only loopback — never 0.0.0.0
-                let channel = try bootstrap.bind(host: "127.0.0.1", port: Int(Self.callbackPort)).wait()
-                self.serverChannel = channel
-                logger.info("oauth.callback_server.bound port=\(Self.callbackPort, privacy: .public)")
-            } catch {
-                logger.error("oauth.callback_server.bind_failed error=\(error.localizedDescription, privacy: .public)")
-                try? group.syncShutdownGracefully()
-                self.group = nil
-                // Heuristic: bind failure most likely means port is already in use.
-                continuation.resume(throwing: CodexOAuthError.portInUse)
-                return
+        let bootstrap = ServerBootstrap(group: group)
+            .serverChannelOption(ChannelOptions.socketOption(.so_reuseaddr), value: 1)
+            .childChannelInitializer { [handler] channel in
+                channel.pipeline.configureHTTPServerPipeline(withErrorHandling: false)
+                    .flatMap { channel.pipeline.addHandler(handler) }
             }
+            .childChannelOption(ChannelOptions.socketOption(.so_reuseaddr), value: 1)
+            .childChannelOption(ChannelOptions.maxMessagesPerRead, value: 4)
 
-            // 5-minute timeout — cancel the continuation and shut down.
+        do {
+            // Fix 2: use async .get() instead of blocking .wait() inside an async function.
+            let channel = try await bootstrap.bind(host: "127.0.0.1", port: Int(Self.callbackPort)).get()
+            self.serverChannel = channel
+            logger.info("oauth.callback_server.bound port=\(Self.callbackPort, privacy: .public)")
+        } catch {
+            logger.error("oauth.callback_server.bind_failed error=\(error.localizedDescription, privacy: .public)")
+            try? group.syncShutdownGracefully()
+            self.group = nil
+            self.pendingHandler = nil
+            if let ioError = error as? IOError, ioError.errnoCode == EADDRINUSE {
+                throw CodexOAuthError.portInUse
+            }
+            throw CodexOAuthError.callbackServerBindFailed(underlying: error)
+        }
+    }
+
+    /// Waits for a single GET /auth/callback, validates state, and returns (code, state).
+    /// Requires `bind(expectedState:)` to have completed successfully first.
+    func awaitCallback(expectedState: String) async throws -> (code: String, state: String) {
+        // Fix 3: check cancellation before checking channel.
+        if didCancel {
+            throw CodexOAuthError.cancelled
+        }
+        guard let handler = pendingHandler, serverChannel != nil else {
+            throw CodexOAuthError.invalidTokenResponse
+        }
+
+        return try await withCheckedThrowingContinuation { continuation in
+            // Fix 1: wire the pre-built handler with the continuation.
+            // If a request already arrived and buffered a result, wire() drains it immediately.
+            handler.wire(continuation: continuation)
+
             let capturedSelf = self
-            let capturedContinuation = continuation
             DispatchQueue.global().asyncAfter(deadline: .now() + Self.timeoutSeconds) {
-                // Only fires if handler hasn't already resumed.
-                if callbackHandler.markTimedOut() {
+                if handler.markTimedOut() {
                     logger.warning("oauth.callback_server.timeout")
                     capturedSelf.shutdown()
-                    capturedContinuation.resume(throwing: CodexOAuthError.callbackTimeout)
+                    handler.resumeWithError(CodexOAuthError.callbackTimeout)
                 }
             }
         }
     }
 
+    // listen(expectedState:) validates that the returned state matches the expected value.
+    func listen(expectedState: String) async throws -> (code: String, state: String) {
+        try await bind(expectedState: expectedState)
+        return try await awaitCallback(expectedState: expectedState)
+    }
+
     /// Cancel a pending listen: resumes the waiting continuation with `.cancelled`,
     /// then closes the NIO channel so port 1455 is freed immediately.
     func stop() async {
-        if let handler = callbackHandler, handler.markCancelled() {
-            handler.resumeWithCancellation()
+        // Fix 3: set didCancel before nilling so awaitCallback sees .cancelled.
+        didCancel = true
+        if let handler = pendingHandler, handler.markCancelled() {
+            handler.resumeWithError(CodexOAuthError.cancelled)
         }
-        callbackHandler = nil
-        // Close synchronously so port 1455 is released before this returns.
-        try? serverChannel?.close().wait()
+        pendingHandler = nil
+        // Fix 2: use async close/shutdown to avoid blocking the caller's actor.
+        try? await serverChannel?.close().get()
         serverChannel = nil
-        try? group?.syncShutdownGracefully()
+        try? await group?.shutdownGracefully()
         group = nil
     }
 
@@ -91,7 +117,7 @@ final class CodexOAuthCallbackServer {
         serverChannel = nil
         try? group?.syncShutdownGracefully()
         group = nil
-        callbackHandler = nil
+        pendingHandler = nil
     }
 }
 
@@ -104,18 +130,55 @@ private final class CodexOAuthCallbackHandler: ChannelInboundHandler {
     typealias OutboundOut = HTTPServerResponsePart
 
     private let expectedState: String
-    private let continuation: CheckedContinuation<(code: String, state: String), Error>
+    private var continuation: CheckedContinuation<(code: String, state: String), Error>?
 
     // Guards against double-resume from timeout racing with callback receipt.
     private var lock = NSLock()
     private var resumed = false
+    // Fix 1: buffers a result that arrives before wire() is called.
+    private var bufferedResult: Result<(code: String, state: String), Error>?
 
-    init(
-        expectedState: String,
-        continuation: CheckedContinuation<(code: String, state: String), Error>
-    ) {
+    init(expectedState: String) {
         self.expectedState = expectedState
-        self.continuation = continuation
+    }
+
+    // Fix 1: called from awaitCallback to provide the continuation.
+    // If a result already arrived and was buffered, drains it immediately.
+    func wire(continuation: CheckedContinuation<(code: String, state: String), Error>) {
+        lock.lock()
+        if resumed {
+            // Cancelled/timed-out before wire() was called.
+            // bufferedResult may already hold the error (resumeWithError ran),
+            // or resumeWithError is racing and will arrive shortly — stash
+            // the continuation so it can deliver directly.
+            let result = bufferedResult
+            if result != nil {
+                bufferedResult = nil
+                lock.unlock()
+                switch result! {
+                case .success(let value): continuation.resume(returning: value)
+                case .failure(let error): continuation.resume(throwing: error)
+                }
+            } else {
+                self.continuation = continuation
+                lock.unlock()
+            }
+            return
+        }
+        let captured = bufferedResult
+        if captured != nil {
+            bufferedResult = nil
+            resumed = true
+        } else {
+            self.continuation = continuation
+        }
+        lock.unlock()
+        if let result = captured {
+            switch result {
+            case .success(let value): continuation.resume(returning: value)
+            case .failure(let error): continuation.resume(throwing: error)
+            }
+        }
     }
 
     // Returns true if this call atomically transitions to "timed out".
@@ -136,18 +199,39 @@ private final class CodexOAuthCallbackHandler: ChannelInboundHandler {
         return true
     }
 
-    // Resumes the continuation with .cancelled — called only after markCancelled() succeeds.
-    func resumeWithCancellation() {
-        continuation.resume(throwing: CodexOAuthError.cancelled)
+    // Resumes the continuation (or buffers the error if not yet wired).
+    func resumeWithError(_ error: Error) {
+        lock.lock()
+        let c = continuation
+        if c != nil {
+            continuation = nil
+        } else {
+            bufferedResult = .failure(error)
+        }
+        lock.unlock()
+        c?.resume(throwing: error)
     }
 
-    // Called by the timeout path to signal that we already resumed.
-    private func tryResume(with result: Result<(code: String, state: String), Error>) -> Bool {
+    private func deliver(_ result: Result<(code: String, state: String), Error>) {
         lock.lock()
-        defer { lock.unlock() }
-        if resumed { return false }
+        if resumed {
+            lock.unlock()
+            return
+        }
         resumed = true
-        return true
+        let c = continuation
+        if c != nil {
+            continuation = nil
+        } else {
+            bufferedResult = result
+        }
+        lock.unlock()
+        if let c {
+            switch result {
+            case .success(let value): c.resume(returning: value)
+            case .failure(let error): c.resume(throwing: error)
+            }
+        }
     }
 
     func channelRead(context: ChannelHandlerContext, data: NIOAny) {
@@ -189,11 +273,9 @@ private final class CodexOAuthCallbackHandler: ChannelInboundHandler {
         """
         respond(context: context, status: .ok, body: html, contentType: "text/html; charset=utf-8")
 
-        if tryResume(with: .success((code: code, state: state))) {
-            continuation.resume(returning: (code: code, state: state))
-            // Close this channel after writing response; the server shuts down in the caller.
-            context.channel.close(promise: nil)
-        }
+        deliver(.success((code: code, state: state)))
+        // Close this channel after writing response; the server shuts down in the caller.
+        context.channel.close(promise: nil)
     }
 
     private func respond(
