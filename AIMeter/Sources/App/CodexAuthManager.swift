@@ -16,6 +16,16 @@ struct CodexAccount: Identifiable, Equatable {
     let planType: String?
     let chatGPTAccountId: String?
 
+    // OAuth PKCE upgrade fields — optional, fully backwards-compatible.
+    // When present, CodexTokenWarden uses oauthAccessTokenExpiresAt to schedule
+    // proactive refresh; oauthAccessToken is kept current by CodexOAuthService.
+    var oauthRefreshToken: String?
+    var oauthAccessToken: String?
+    var oauthAccessTokenExpiresAt: Date?
+
+    /// True when this account has a stored OAuth refresh token (has been "upgraded").
+    var hasOAuthUpgrade: Bool { oauthRefreshToken != nil }
+
     var resolvedPlanType: String? {
         planType ?? CodexIDTokenClaims.decode(from: idToken)?.planType
     }
@@ -93,7 +103,22 @@ final class CodexAuthManager: ObservableObject {
             let expiresAt = CodexSessionKeychain.read(account: .expiresAt, accountId: id)
                 .flatMap(CodexDateCodec.decode)
             let chatGPTAccountId = CodexSessionKeychain.read(account: .chatGPTAccountId, accountId: id)
-            return CodexAccount(
+
+            // Load OAuth upgrade fields — these may be absent if account hasn't been upgraded yet.
+            let oauthRefreshToken = CodexSessionKeychain.read(account: .oauthRefreshToken, accountId: id)
+            let oauthAccessToken: String?
+            let oauthAccessTokenExpiresAt: Date?
+            if let cacheJson = CodexSessionKeychain.read(account: .oauthAccessTokenCache, accountId: id),
+               let cacheData = cacheJson.data(using: .utf8),
+               let cache = try? JSONDecoder().decode(OAuthAccessTokenCache.self, from: cacheData) {
+                oauthAccessToken = cache.token
+                oauthAccessTokenExpiresAt = cache.expiresAt
+            } else {
+                oauthAccessToken = nil
+                oauthAccessTokenExpiresAt = nil
+            }
+
+            var account = CodexAccount(
                 id: id,
                 accessToken: token,
                 idToken: idToken,
@@ -103,6 +128,10 @@ final class CodexAuthManager: ObservableObject {
                 planType: plan,
                 chatGPTAccountId: chatGPTAccountId
             )
+            account.oauthRefreshToken = oauthRefreshToken
+            account.oauthAccessToken = oauthAccessToken
+            account.oauthAccessTokenExpiresAt = oauthAccessTokenExpiresAt
+            return account
         }
 
         // Restore active account from UserDefaults, or pick first
@@ -167,7 +196,22 @@ final class CodexAuthManager: ObservableObject {
         }
         CodexSessionKeychain.addAccountId(accountId)
 
-        let account = CodexAccount(
+        // Preserve any existing OAuth upgrade fields — a web-session re-login must not
+        // overwrite them (keychain entries survive, but we need the in-memory struct to match).
+        let existingOAuthRefreshToken = CodexSessionKeychain.read(account: .oauthRefreshToken, accountId: accountId)
+        let existingOAuthAccessToken: String?
+        let existingOAuthAccessTokenExpiresAt: Date?
+        if let cacheJson = CodexSessionKeychain.read(account: .oauthAccessTokenCache, accountId: accountId),
+           let cacheData = cacheJson.data(using: .utf8),
+           let cache = try? JSONDecoder().decode(OAuthAccessTokenCache.self, from: cacheData) {
+            existingOAuthAccessToken = cache.token
+            existingOAuthAccessTokenExpiresAt = cache.expiresAt
+        } else {
+            existingOAuthAccessToken = nil
+            existingOAuthAccessTokenExpiresAt = nil
+        }
+
+        var account = CodexAccount(
             id: accountId,
             accessToken: accessToken,
             idToken: idToken,
@@ -177,6 +221,10 @@ final class CodexAuthManager: ObservableObject {
             planType: resolvedPlanType,
             chatGPTAccountId: chatGPTAccountId
         )
+        account.oauthRefreshToken = existingOAuthRefreshToken
+        account.oauthAccessToken = existingOAuthAccessToken
+        account.oauthAccessTokenExpiresAt = existingOAuthAccessTokenExpiresAt
+
         if let idx = accounts.firstIndex(where: { $0.id == accountId }) {
             accounts[idx] = account
         } else {
@@ -222,6 +270,48 @@ final class CodexAuthManager: ObservableObject {
         UserDefaults.standard.set(id, forKey: "codexActiveAccountId")
         syncProxyAccounts()
         ensureProxyRunning()
+    }
+
+    /// Re-reads keychain for a single account and publishes the updated struct.
+    /// Called after OAuth upgrade or token revocation so the UI and proxy see the new state.
+    func reloadAccount(id: String) {
+        guard let token = CodexSessionKeychain.read(account: .accessToken, accountId: id) else { return }
+        let email = CodexSessionKeychain.read(account: .email, accountId: id) ?? id
+        let plan = CodexSessionKeychain.read(account: .planType, accountId: id)
+        let idToken = CodexSessionKeychain.read(account: .idToken, accountId: id)
+        let refreshToken = CodexSessionKeychain.read(account: .refreshToken, accountId: id)
+        let expiresAt = CodexSessionKeychain.read(account: .expiresAt, accountId: id)
+            .flatMap(CodexDateCodec.decode)
+        let chatGPTAccountId = CodexSessionKeychain.read(account: .chatGPTAccountId, accountId: id)
+        let oauthRefreshToken = CodexSessionKeychain.read(account: .oauthRefreshToken, accountId: id)
+        let oauthAccessToken: String?
+        let oauthAccessTokenExpiresAt: Date?
+        if let cacheJson = CodexSessionKeychain.read(account: .oauthAccessTokenCache, accountId: id),
+           let cacheData = cacheJson.data(using: .utf8),
+           let cache = try? JSONDecoder().decode(OAuthAccessTokenCache.self, from: cacheData) {
+            oauthAccessToken = cache.token
+            oauthAccessTokenExpiresAt = cache.expiresAt
+        } else {
+            oauthAccessToken = nil
+            oauthAccessTokenExpiresAt = nil
+        }
+        var updated = CodexAccount(
+            id: id,
+            accessToken: token,
+            idToken: idToken,
+            refreshToken: refreshToken,
+            expiresAt: expiresAt,
+            email: email,
+            planType: plan,
+            chatGPTAccountId: chatGPTAccountId
+        )
+        updated.oauthRefreshToken = oauthRefreshToken
+        updated.oauthAccessToken = oauthAccessToken
+        updated.oauthAccessTokenExpiresAt = oauthAccessTokenExpiresAt
+        if let idx = accounts.firstIndex(where: { $0.id == id }) {
+            accounts[idx] = updated
+        }
+        syncProxyAccounts()
     }
 
     func openLoginWindow() {
@@ -570,6 +660,7 @@ private struct CodexIDTokenClaims: Decodable {
         return try? JSONDecoder().decode(CodexIDTokenClaims.self, from: data)
     }
 }
+
 
 private enum CodexDateCodec {
     private static let formatter = ISO8601DateFormatter()

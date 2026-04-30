@@ -5,6 +5,10 @@ enum CodexSessionKeychain {
 
     enum Account: String, CaseIterable {
         case accessToken, email, planType, idToken, refreshToken, expiresAt, chatGPTAccountId
+        // OAuth PKCE credentials — stored separately from the web-session token.
+        // oauthAccessTokenCache stores a JSON blob { "token": "…", "expiresAt": "ISO8601" }
+        // so we avoid a second keychain entry just for the expiry date.
+        case oauthRefreshToken, oauthAccessTokenCache
     }
 
     // MARK: - Un-namespaced (legacy, used for migration check)

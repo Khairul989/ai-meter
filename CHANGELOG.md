@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.3.0] - 2026-04-30
+
+### Added
+
+- Proactive Codex token refresh: tokens self-renew at `expiresAt − 5min` per OAuth-upgraded account, with foreground hook on app activation and exponential backoff on transient failure
+- "Session expired" banner now driven by terminal refresh failure (HTTP 400 `invalid_grant` / 401), not bare expiry — OAuth-upgraded accounts no longer surface the banner during normal use
+
+### Removed
+
+- Claude-compat proxy (Codex → Claude routing): `ClaudeCompatProxyService` and `ClaudeProxyStore` deleted along with the routing UI in the Claude tab. Codex CLI proxy on port 2455 and Claude transcript parsing remain untouched.
+
 ## [2.2.0] - 2026-04-26
 
 ### Added

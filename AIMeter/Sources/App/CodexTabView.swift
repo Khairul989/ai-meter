@@ -849,6 +849,7 @@ struct CodexTabView: View {
     @ObservedObject var codexAuthManager: CodexAuthManager
     @ObservedObject var historyService: CodexHistoryService
     @ObservedObject var statsService: CodexSessionStatsService
+    @EnvironmentObject private var codexTokenWarden: CodexTokenWarden
     let timeZone: TimeZone
     var providerStatus: ProviderStatusService.StatusInfo?
     var forceEmptyState: Bool = false
@@ -876,6 +877,10 @@ struct CodexTabView: View {
                 }
             } else if case .rateLimited = codexService.error {
                 ErrorBannerView(message: "Rate limited — retrying", retryDate: codexService.retryDate)
+            } else if let account = codexAuthManager.activeAccount,
+                      account.hasOAuthUpgrade,
+                      codexTokenWarden.requiresManualSignIn(account) {
+                tokenExpiredBanner
             } else if codexService.error == .tokenExpired {
                 tokenExpiredBanner
             }
