@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.5.0] - 2026-05-03
+
+### Added
+
+- **Per-folder Claude account routing.** New Settings → Claude Routing tab lets you maintain multiple Claude OAuth profiles (`personal`, `work`, etc.), paste tokens once into the macOS Keychain, then map folders to profiles. AIMeter writes managed `.envrc` blocks that direnv consumes at runtime to set `CLAUDE_CODE_OAUTH_TOKEN` per-directory. Setup-time only — no runtime shimming, no proxy
+- `ClaudeProfile` + `ClaudeFolderRoute` data model with JSON persistence to `~/Library/Application Support/AIMeter/claude-routing.json`
+- `ClaudeProfileKeychain` — discrete per-slug Keychain entries (service ID `claude-<slug>`) with `kSecAttrAccessibleAfterFirstUnlock` for security-scoped access
+- `EnvrcWriter` — block-marker merge (`# >>> aimeter claude routing >>>` … `# <<< aimeter claude routing <<<`) preserves user's existing `.envrc` lines; atomic writes via `FileManager.replaceItem`
+- Diff preview sheet with create/update/delete actions, GitHub-style colored line gutters, horizontal scroll for long shell lines, and content-hugging height (no more huge top/bottom gaps on short diffs)
+- Onboarding card for first-time setup; cascade-delete confirmation when removing a profile that has folder rules pointing at it
+- Token rotation flow with copy-command buttons for the three-step rotate process
+- Pre-write info banner explaining the `direnv allow` step users will need to run once per `.envrc`
+
+### Fixed
+
+- Diff preview no longer persists a folder rule when the user clicks Cancel — route persistence is now deferred into a `commit` closure that only fires after `EnvrcWriter.commit()` succeeds
+- "Add Folder Rule" button correctly disabled (with tooltip) until at least one Claude profile exists
+- Folder picker uses security-scoped bookmarks so the sandbox can re-resolve the folder URL across launches
+
 ## [2.4.0] - 2026-04-30
 
 ### Added

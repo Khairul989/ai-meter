@@ -6,6 +6,7 @@ import ServiceManagement
 
 enum SettingsSection: String, CaseIterable {
     case accounts = "Accounts"
+    case claudeRouting = "Claude Routing"
     case display = "Display"
     case notifications = "Notifications"
     case shortcuts = "Shortcuts"
@@ -17,6 +18,7 @@ enum SettingsSection: String, CaseIterable {
     var icon: String {
         switch self {
         case .accounts:      return "person.2"
+        case .claudeRouting: return "folder.badge.gearshape"
         case .display:       return "paintbrush"
         case .notifications: return "bell"
         case .shortcuts:     return "keyboard"
@@ -30,6 +32,7 @@ enum SettingsSection: String, CaseIterable {
     var subtitle: String {
         switch self {
         case .accounts: return "Identity and provider access"
+        case .claudeRouting: return "Per-folder Claude account routing"
         case .display: return "Layout, refresh, and visual behavior"
         case .notifications: return "Threshold alerts and signals"
         case .shortcuts: return "Keyboard navigation map"
@@ -207,6 +210,8 @@ struct SettingsView: View {
                 kimiAuthManager: kimiAuthManager,
                 minimaxAuthManager: minimaxAuthManager
             )
+        case .claudeRouting:
+            ClaudeRoutingView()
         case .display:
             DisplaySettingsSection()
         case .notifications:
